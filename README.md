@@ -1,4 +1,4 @@
-# Mavlink Ardupilot Telemetry and HD video via LTE (4G) with multiple client support:
+# Mavlink Ardupilot Telemetry and HD video via LTE (4G):
 
 # Introduction
 This is based on my project [MavlinkGPRS](https://github.com/KenLagoni/MavlinkGPRS) flying with 2G telemetry link, but this time I want to ad HD video streaming also and thus stepping up to 4G (LTE).
