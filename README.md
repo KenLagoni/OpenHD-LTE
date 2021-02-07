@@ -18,7 +18,7 @@ This is the list of the setup im currently working on:
 #### The LTE (4G) modem:
 In order to get the highest bandwidt possible with LTE, a Cat. 4 modem (150Mbps/50Mbps Down/Up) must be used. This gives a maximum max upload of 50mbps and depending on the video settings, a maximum of ~10Mbps should do.
 Currently I use the Quectel EC25-E because i live in the EU. These can be found on Aliexpress for around ~$50 in a fairly small formfactor where I can use my own external antenna.
-![alt text](images/groundpi-setup.png)
+![alt text](images/QUECTEL_EC25-E.png)
 
 #### Raspberry Pi Zero:
 Currently testing with Raspberry Pi Zero, and by using the CSI-2 interface and onboard HW video encoder I get 1920x1080 30fps without any problems. The total CPU usages is arround 20-30% inkl. the program which handles data transmission.
@@ -37,10 +37,11 @@ At the moment the ground station consists of two Raspberry pi's. One for receiev
 The OSD is just very nice, and it can easilly be costemizes on the fly using the mouse, see more [Here](https://github.com/OpenHD/Open.HD):
 ![OSD without video](images/OpenHD-osd-blank-nomap.png)
 ![OSD with map and withot video](images/OpenHD-osd-blank.png)
-![OSD with video](images/OpenHD-osd-blank.png)
 
 # How to Build
 Build on Raspberry Pi:
-git clone 
-cd OpenHD_LTE
-./build
+
+    // Commands to be run on Raspberry Pi
+    git clone https://github.com/KenLagoni/OpenHD-LTE.git
+    cd OpenHD-LTE
+    ./build
