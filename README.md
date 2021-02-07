@@ -12,13 +12,13 @@ This is based on my project [MavlinkGPRS](https://github.com/KenLagoni/MavlinkGP
 
 # Hardware (Drone side):
 This is the list of the setup im currently working on:
-![Air-side setup1](Images/air-outside-setup.png)
-![Air-side setup2](Images/air-open-setup.png)
+![Air-side setup1](images/air-outside-setup.png)
+![Air-side setup2](images/air-open-setup.png)
 
 #### The LTE (4G) modem:
 In order to get the highest bandwidt possible with LTE, a Cat. 4 modem (150Mbps/50Mbps Down/Up) must be used. This gives a maximum max upload of 50mbps and depending on the video settings, a maximum of ~10Mbps should do.
 Currently I use the Quectel EC25-E because i live in the EU. These can be found on Aliexpress for around ~$50 in a fairly small formfactor where I can use my own external antenna.
-![alt text](Images/groundpi-setup.png)
+![alt text](images/groundpi-setup.png)
 
 #### Raspberry Pi Zero:
 Currently testing with Raspberry Pi Zero, and by using the CSI-2 interface and onboard HW video encoder I get 1920x1080 30fps without any problems. The total CPU usages is arround 20-30% inkl. the program which handles data transmission.
@@ -29,15 +29,15 @@ Well the standard Raspberry Pi camera v1 and v2 are not very good, but they can 
 
 # Hardware (Ground side):
 At the moment the ground station consists of two Raspberry pi's. One for receieving and displaing video with OSD (from the [OpenHD](https://github.com/OpenHD/Open.HD) project) and one which records the HDMI output and makes the video available to multiple clients via RTSP, based on the [rtsp-simple-server](https://github.com/aler9/rtsp-simple-server) project.
-![Ground setup](Images/groundpi-setup.png)
+![Ground setup](images/groundpi-setup.png)
 1. Raspberry pi 3+/4 as groundstation running OpenHD buster v2.0.8 with modification ***Documentation TODO.
 2. Raspberry pi 3+/4 as groundstatin recorder and video server. Running the latest RPI buster image ***Documentation TODO.  
 
 #### OSD (OpenHD/QOpenHD):
 The OSD is just very nice, and it can easilly be costemizes on the fly using the mouse, see more [Here](https://github.com/OpenHD/Open.HD):
-![OSD without video](Images/OpenHD-osd-blank-nomap.png)
-![OSD with map and withot video](Images/OpenHD-osd-blank.png)
-![OSD with video](Images/OpenHD-osd-blank.png)
+![OSD without video](images/OpenHD-osd-blank-nomap.png)
+![OSD with map and withot video](images/OpenHD-osd-blank.png)
+![OSD with video](images/OpenHD-osd-blank.png)
 
 # How to Build
 Build on Raspberry Pi:
