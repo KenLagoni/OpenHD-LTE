@@ -18,7 +18,8 @@ This is the list of the setup im currently working on:
 #### The LTE (4G) modem:
 In order to get the highest bandwidt possible with LTE, a Cat. 4 modem (150Mbps/50Mbps Down/Up) must be used. This gives a maximum max upload of 50mbps and depending on the video settings, a maximum of ~10Mbps should do.
 Currently I use the Quectel EC25-E because i live in the EU. These can be found on Aliexpress for around ~$50 in a fairly small formfactor where I can use my own external antenna.
-![alt text](images/QUECTEL_EC25-E.png){.center}
+![alt text](images/QUECTEL_EC25-E.png)
+
 
 #### Raspberry Pi Zero:
 Currently testing with Raspberry Pi Zero, and by using the CSI-2 interface and onboard HW video encoder I get 1920x1080 30fps without any problems. The total CPU usages is arround 20-30% inkl. the program which handles data transmission.
