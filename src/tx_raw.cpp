@@ -1,57 +1,6 @@
-#include <fcntl.h>
-#include <getopt.h>
-#include <net/if.h>
-#include <netinet/ether.h>
-#include <netpacket/packet.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <termios.h>
-#include <time.h>
-#include <unistd.h>
-#include <iostream>
-#include <chrono> // Crone time measure
-#include "connection.h"
-
-
-//Video record to file
-#include <fstream> 
-
-// for Mavlink
-#include "c_library_v1-master/common/mavlink.h"
-#include "c_library_v1-master/ardupilotmega/mavlink.h"
-
-//FIFO
-#include "RingBuf.h"
-#define FIFO_SIZE 256 // Mavlink messages
-
-// Serial:
-#define MAXLINE 1024
-
-#define DEFAULT_MAX_VIDEO_FILE_SIZE 2000000000 // (FAT32 max 2Gb (2147483648)) if not set with -z option.
-#define MAX_VIDEO_BUFFER_SIZE 1024*1024*2 // 2MB
-#define VIDEO_BUFFER_WRITE_THRESHOLD 1024*1024*1 // 1MB
-#define VIDEO_TX_BUFFER_SIZE 1024 // 1024 of the struct with 1024 in each, so 1024*1024=1MB
-
-#define SERIAL_BAUDRATE 57600 //**** TODO also implement it in open_port 
-#define LOG_INTERVAL_SEC 1 // log every minute
-
-#define VIDEO_RETRY_ATTEMPTS 0 
+#include "tx_raw.h"
 
 int flagHelp = 0;
-
-int max(int x, int y)
-{
-	if (x > y)
-	return x;
-	else
-	return y;
-}
 
 typedef struct {
 	float mavlinktx;
@@ -61,21 +10,6 @@ typedef struct {
 	float videodropped;
 } tx_dataRates_t;
 
-#define MAX_SERIAL_BUFFER_SIZE 1024 // fit inside one UDP, this could perhaps be 1024 or 1508, but if we transmitt everytime MSG30 (HUD) is received will will never get more than ~500bytes.
-#define TELEMETRY_HEADER 0xFC
-#define TELEMETRY_HEADER_SIZE 5
-
-typedef struct {
-	uint8_t cpuLoad;
-	int8_t cpuTemp;	
-} telematryFrame_t;
-
-
-typedef struct {
-	uint16_t len;
-	uint8_t data[1024];
-} videoFrame_t;
-
 void usage(void) {
     printf("\nUsage: [Video stream] | tx_raw [options]\n"
            "\n"
@@ -84,16 +18,16 @@ void usage(void) {
            "-v  <port>     UDP port for video.\n"
            "-s  <serial>   Serial device to listen for Mavlink packages from Flight Computer\n"
 		   "-p  <port>     UDP port for serial data output.\n"
+		   "-t  <port>     Port for Telemetry data.\n"
            "-o  <file>     Output file to local record of input stream, .h264 will be added to the name\n"
            "-z  <Mbytes>   Maximum allowed output file size, on FAT32 2000 should be used. Next file will be same filename as -o but 1..N added.\n"
            "\n"
            "Example:\n"
            "  raspvid -t 0 | ./tx_raw -i X.X.X.X -v 7000 -s /dev/serial0 -p 8000 -o record -z 2000\n"
+		   "  raspvid -t 0 | ./tx_raw -i X.X.X.X -v 7000 -s /dev/serial0 -p 8000 -t 5200 -o record -z 2000\n"
            "\n");
     exit(1);
 }
-
-
 
 int open_port(const char* serialDevice){
 	int fd;		//File descriptor for the port
@@ -158,7 +92,7 @@ int main(int argc, char *argv[]) {
 	int udpSerialPort=0;
 	char *outputFile;
 	long maxFileSize=0;
-
+	int telemetryPort=0;
 	printf("Starting tx_raw program v0.20 (c)2021 by Lagoni. Not for commercial use\n");
 //	fprintf(stderr, "Inputs are:\n");
 
@@ -168,7 +102,7 @@ int main(int argc, char *argv[]) {
             { "help", no_argument, &flagHelp, 1 },
             {      0,           0,         0, 0 }
         };
-        int c = getopt_long(argc, argv, "h:i:v:s:p:o:z:", optiona, &nOptionIndex);
+        int c = getopt_long(argc, argv, "h:i:v:s:p:o:z:t:", optiona, &nOptionIndex);
         if (c == -1) {
             break;
         }
@@ -209,6 +143,11 @@ int main(int argc, char *argv[]) {
 //				fprintf(stderr, "Serial Port   :%d\n",udpSerialPort);
 	            break;
             }
+
+			case 't': {
+				telemetryPort = atoi(optarg);
+				break;
+			}			
 
             case 'o': {
 	            outputFile = optarg;
@@ -263,8 +202,7 @@ int main(int argc, char *argv[]) {
 	int Serialfd = open_port(serialDevice);
 	telematryFrame_t telemetryData;
 	bzero(&telemetryData, sizeof(telemetryData));
-	
-	
+		
 	uint16_t totalSize = 0; // number of bytes in mavlink fifo
 	uint8_t serialBuffer[MAX_SERIAL_BUFFER_SIZE];
 	uint16_t serialBufferSize = 0;
@@ -295,8 +233,8 @@ int main(int argc, char *argv[]) {
 	videoFrame_t bufdata;
 	int videoTxRetry=0;
 
-	// For select usages.		  
-	fd_set read_set;  
+	// For select usages.
+	fd_set read_set;
 	int maxfdp1;
 	struct timeval timeout;
 
@@ -305,8 +243,12 @@ int main(int argc, char *argv[]) {
 	bzero(&linkstatus, sizeof(linkstatus));
 	time_t nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;
 	
+	// For Telemetry (CPU temp / load)
+	Connection telemetryToBaseConnection(targetIp,telemetryPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking
+	long double a[4], b[4]; // for Cpuload calculations
+	air_status_t data;
+	
 	do{
-		
 		FD_ZERO(&read_set);
 		
 		// file dessriptors
@@ -334,7 +276,6 @@ int main(int argc, char *argv[]) {
 		}
 	    nready = select(maxfdp1+1, &read_set, NULL, NULL, &timeout);  // blocking
 
-	
 		
 		if (FD_ISSET(Serialfd, &read_set)) { // Data from serial port.
 //			printf("Data from Serial port!\n\r");
@@ -460,10 +401,11 @@ int main(int argc, char *argv[]) {
 			
 				if(videoBufferSize > VIDEO_BUFFER_WRITE_THRESHOLD){ // Time to write video buffer to file
 	//				printf("Writing %d bytes to Videofile\n\r", videoBufferSize);	
-					if(true==armed){
+//					if(true==armed){
+//					if(false){
 						videoRecordFile->write(videoBuffer,videoBufferSize);
 						videoRecordFileSize += videoBufferSize;				
-					}
+//					}
 					videoBufferSize=0;
 
 					if(videoRecordFileSize > maxFileSize){ // time to change file
@@ -528,7 +470,7 @@ int main(int argc, char *argv[]) {
 						videoTxRetry=0;
 					}
 				}else{
-					videoTxRetry=0; // complettede sending frame.
+					videoTxRetry=0; // completed sending frame.
 					linkstatus.videotx += result; // counting b.
 					if( !(videoBufferTx.isEmpty()) ){
 					//	printf("tx_raw: After successfully transmitting one video frame, there is still %d frames left in buffer.\n\r", videoBufferTx.size());
@@ -538,22 +480,44 @@ int main(int argc, char *argv[]) {
 		}
 		
 		//Only run on timeout
-		if(nready == 0){
-			
+		if(nready == 0){	
 			// check if it is time to log the status:
 			if(time(NULL) >= nextPrintTime){		
 				printf("%d tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fKB ", time(NULL), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 8 ,linkstatus.videodropped/1024);
 //				printf("%llu tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fKB ", timeMillisec(), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 8 ,linkstatus.videodropped/1024);
-				if(true==armed){
-					
-					printf("   FC=ARMED\n");							
+				if(true==armed){			
+					printf("   FC=ARMED");							
 				}else{
-					printf("   FC=DISARMED\n");							
+					printf("   FC=DISARMED");							
 				}																																				 
 				bzero(&linkstatus, sizeof(linkstatus));
 				nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;
 				
+		        
+/*								
+				fp = fopen("/proc/stat", "r");
+				fscanf(fp, "%*s %Lf %Lf %Lf %Lf", &a[0], &a[1], &a[2], &a[3]);
+				fclose(fp);
+	*/			
+		        FILE *fp;				
+				fp = fopen("/proc/stat", "r");
+				fscanf(fp, "%*s %Lf %Lf %Lf %Lf", &b[0], &b[1], &b[2], &b[3]);
+				fclose(fp);				
+			
+				telemetryData.cpuLoad = (((b[0] + b[1] + b[2]) - (a[0] + a[1] + a[2])) / ((b[0] + b[1] + b[2] + b[3]) - (a[0] + a[1] + a[2] + a[3]))) * 100;
+				// move current cpu time to last cpu time.
+				a[0]=b[0];
+				a[1]=b[1];
+				a[2]=b[2];
+				a[3]=b[3];
+				
 				telemetryData.cpuTemp=getCpuTemp();
+				printf("   CPU Load: %3d%%     CPU Temp: %3dC\n",telemetryData.cpuLoad,telemetryData.cpuTemp);			
+			//	fprintf(stderr, "tx_raw: CPU load:%d CPU temperatur:%d\n",telemetryData.cpuLoad,telemetryData.cpuTemp);
+				
+				//telemetryData
+				// Send telemetry on port:
+				telemetryToBaseConnection.writeData(&telemetryData,sizeof(telemetryData));		
 			}
 		}
 	}while(1);

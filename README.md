@@ -11,6 +11,7 @@ This is based on my project [MavlinkGPRS](https://github.com/KenLagoni/MavlinkGP
 - The Groundstation must be able to share the videostream with OSD via TCP RTSP protocol.
 
 # Hardware (Drone side):
+For instructions on how to setup air side see [here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/air).  
 This is the list of the setup im currently working on:
 ![Air-side setup1](images/air-outside-setup.png)
 ![Air-side setup2](images/air-open-setup.png)
@@ -36,8 +37,10 @@ At the moment the ground station consists of two Raspberry pi's. One for receiev
 
 #### OSD (OpenHD/QOpenHD):
 The OSD is just very nice, and it can easilly be costemizes on the fly using the mouse, see more [Here](https://github.com/OpenHD/Open.HD):
+OSD without video:
 ![OSD without video](images/OpenHD-osd-blank-nomap.png)
-![OSD with map and withot video](images/OpenHD-osd-blank.png)
+OSD and video:
+![OSD with video](images/OpenHD-osd.png)
 
 # How to Build
 Build on Raspberry Pi:
@@ -46,3 +49,6 @@ Build on Raspberry Pi:
     git clone https://github.com/KenLagoni/OpenHD-LTE.git
     cd OpenHD-LTE
     ./build
+
+-For instructions on how to create the air-side SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/air).  
+-For instructions on how to create the ground-side SD card see ***TODO****
