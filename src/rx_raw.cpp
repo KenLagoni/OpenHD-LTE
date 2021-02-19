@@ -18,6 +18,7 @@ void usage(void) {
 	"Telemetry(reframed for QOpenHD)->localhost:5155\n"
 	"Optional:\n"
 	"Mavlink<->IP:PORT\n"
+	"Mavlink->192.168.0.8:6000\n" // For video record on/off.
 	"Example:\n"
 	"  ./rx_raw -v 7000 -m 12000 -t 5200 -i 192.168.0.67 -r 14550\n"
 	"\n");
@@ -141,6 +142,9 @@ int main(int argc, char *argv[])
 	// For UDP/TCP Sockets
 	Connection inputTelemetryConnection(telemetryPort, SOCK_DGRAM); // UDP port
 	Connection outputTelemetryConnection("127.0.0.1", OUTPUT_TELEMETRY_PORT, SOCK_DGRAM);
+
+	// For UDP/TCP Sockets Video record  mavlink forward
+	Connection extraRelayMavlinkConnection("192.168.0.8",6000, SOCK_DGRAM); // UDP port
 				
 	uint8_t rxBuffer[RX_BUFFER_SIZE];
 	int nready, maxfdp1; 
@@ -202,8 +206,8 @@ int main(int argc, char *argv[])
 	
 	
 	
-	
-	
+//	videoStream_t recordStream; // 0x27 First header in h.264 stream
+//	bzero(&recordStream, sizeof(recordStream));
 	
 	do{
 		FD_ZERO(&rset); 
@@ -250,6 +254,48 @@ int main(int argc, char *argv[])
 			}else {	
 				write(STDOUT_FILENO, rxBuffer, result);		// also write to STDOUT.	
 			//	outputVideoConnection.writeData(rxBuffer, result);
+			/*
+				// Record:
+				if((false==recordStream.SPSHeaderFound) || (false==recordStream.PPSHeaderFound)){
+					for(int a =0;a<result-5;a++){
+						if(rxBuffer[a] == 0x00 && rxBuffer[a+1] == 0x00 && rxBuffer[a+2] == 0x00 && rxBuffer[a+3] == 0x01){ // Header code found
+							if(rxBuffer[a+4] == SPS_HEADER_CODE){
+								fprintf(stderr, "RX: Video SPS 0x27 header found!\n");
+								for(int b=0; b<SPS_HEADER_SIZE; b++){
+									if(a+SPS_HEADER_SIZE < result){
+										recordStream.SPSHeader[b]=rxBuffer[a+5];
+										fprintf(stderr, "0x%2d ",recordStream.SPSHeader[b]);
+									}
+								}
+								recordStream.SPSHeaderFound = true;
+								fprintf(stderr, "\n");
+							}else if(rxBuffer[a+4] == PPS_HEADER_CODE){
+								fprintf(stderr, "RX: Video PPS 0x28 header found!: ");
+								for(int b=0; b<PPS_HEADER_SIZE; b++){
+									if(a+PPS_HEADER_SIZE < result){
+										recordStream.PPSHeader[b]=rxBuffer[a+5];
+										fprintf(stderr, "0x%2d ",recordStream.PPSHeader[b]);
+									}
+								}
+								recordStream.PPSHeaderFound = true;
+								fprintf(stderr, "\n");
+							}
+						}				
+					}
+				}else{
+					if(false==fileCreated){ // create file with header:
+						
+						
+						
+					}else{ // write data to file
+						
+						
+					}
+					
+					
+					
+				}
+			*/
 				linkstatus.rx += (float)result;
 			}
 		}
@@ -286,7 +332,8 @@ int main(int argc, char *argv[])
 
 				if(relayPort != 0){
 					relayConnection->writeData(rxBuffer, result);
-				}				
+				}			
+				extraRelayMavlinkConnection.writeData(rxBuffer, result); // extra relay for video record when armed.	
 			}
 		}
 

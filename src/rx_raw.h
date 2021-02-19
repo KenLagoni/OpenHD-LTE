@@ -48,6 +48,22 @@ int max(int x, int y)
 	return y;
 }
 
+/*
+#define SPS_HEADER_SIZE 15
+#define SPS_HEADER_CODE 0x27
+#define PPS_HEADER_SIZE 4
+#define PPS_HEADER_CODE 0x28
+
+typedef struct { // 27, 28, 25 (keyframe) 21 (I-frame)
+	uint8_t SPSHeader[SPS_HEADER_SIZE];
+	bool SPSHeaderFound;
+	uint8_t PPSHeader[PPS_HEADER_SIZE];
+	bool PPSHeaderFound;
+	uint32_t bytesRecorded;
+	bool fileCreated;
+} videoStream_t;
+*/
+
 typedef struct {
 	float tx;
 	float rx;

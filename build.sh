@@ -12,3 +12,7 @@ g++ -Isrc/ -o air/tx_raw src/tx_raw.cpp src/connection.cpp
 #build rx_raw for ground pi
 g++ -Isrc/ -o ground/rx_raw src/rx_raw.cpp src/connection.cpp
 
+#build videoRecord for ground pi
+g++ -Isrc/ -o ground/videoRecord src/videoRecord.cpp src/connection.cpp
+
+

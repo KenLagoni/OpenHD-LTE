@@ -392,8 +392,9 @@ int main(int argc, char *argv[]) {
 					videoTxBuffer.len=result;
 					videoBufferTx.push(videoTxBuffer);
 				}else{
-					printf("tx_raw: Warning! - Video TX buffer is full, lets clear it!\n\r");//Buffer full, reset!
+					printf("tx_raw: Warning! - Video TX buffer is full, lets clear it!\n");//Buffer full, reset!
 					videoBufferTx.clear();
+					linkstatus.videodropped += VIDEO_TX_BUFFER_SIZE;					
 				}
 				
 				videoBufferSize += result;
@@ -466,7 +467,7 @@ int main(int argc, char *argv[]) {
 						videoTxRetry++;
 					}else{ // drop frame and reset retry counter:
 						//printf("Unable to send video\n\r", videoBufferTx.size());
-						linkstatus.videodropped += 1;
+						linkstatus.videodropped += bufdata.len;
 						videoTxRetry=0;
 					}
 				}else{
@@ -483,7 +484,7 @@ int main(int argc, char *argv[]) {
 		if(nready == 0){	
 			// check if it is time to log the status:
 			if(time(NULL) >= nextPrintTime){		
-				printf("%d tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fKB ", time(NULL), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 8 ,linkstatus.videodropped/1024);
+				printf("%d tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fMB ", time(NULL), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 6 ,linkstatus.videodropped/(1024*1024));
 //				printf("%llu tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fKB ", timeMillisec(), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 8 ,linkstatus.videodropped/1024);
 				if(true==armed){			
 					printf("   FC=ARMED");							

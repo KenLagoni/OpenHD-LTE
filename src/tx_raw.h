@@ -72,7 +72,6 @@ typedef struct {
 	int16_t rssidBm;
 } telematryFrame_t;
 
-
 typedef struct {
 	uint16_t len;
 	uint8_t data[1024];
