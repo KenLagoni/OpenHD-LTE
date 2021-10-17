@@ -9,7 +9,7 @@ The partition table should look like this:
 3. SDHC (fat32) ~ rest of the card (16GB card -> ~14GB). (14GB of space is ~14Hours of 5Mbit/s recording).
 
 Select and install the latest Raspberry Pi OS lite (32-bit) on to an SD card using the "Raspberry Pi Imager" tool. (This documentation used v1.6.2)\
-![Ground-side setup1](images/ground-install-image_writer.png)
+![Ground-side setup1](https://github.com/KenLagoni/OpenHD-LTE/blob/main/images/ground-install-image_writer.png?raw=true)
 - After the tool is complete it will unmount the SD card. Insert the SD back in the PC BEFORE! booting it on the raspberry.
 - In the Boot partition, find and open the "cmdline.txt" file, and replace "init=/usr/lib/raspi-config/init_resize.sh" with "ip=192.168.0.11" (ensure ip is available on the network).
 - In the Boot partition, make an empty file called "ssh" (no extention) to enable ssh login.
