@@ -381,7 +381,7 @@ int main(int argc, char *argv[]) {
 				exit(1);
 			}else  if(result == 0){
 				// EOF
-				fprintf(stderr, "tx_raw: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
+				//fprintf(stderr, "tx_raw: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
 			}else {	
 				//printf("Writing %d bytes to Videobuffer\n\r", result);
 				// write to outfile
