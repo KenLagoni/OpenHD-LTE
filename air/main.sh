@@ -1,58 +1,93 @@
 #!/bin/bash
 #Lets find out if we are on Drone or test-bech: GPIO25 (26) = 1 -> Test bench GPIO25 (26) = 0 -> Drone Set the pin for input
-VERSION=0.10
-MOUNTPATH=/mnt/sd
-LOGFILE=run.log
-IP=81.161.156.81
+
+source $1/air-settings.sh
 
 
-gpio mode 25 in
-# Set the variable through command substitution
-mode=$(gpio read 25)
+#LOGPATH="/home/pi/OpenHD-LTE"
+#LOGFILE="test.log"
 
-mkdir -p /mnt/sd
-mount /dev/mmcblk0p3 /mnt/sd
 
-if [ $mode -gt 0 ]
+mkdir -p $MOUNTPATH
+mount /dev/mmcblk0p3 $MOUNTPATH
+
+mkdir -p /var/run/openhd
+mkfifo /var/run/openhd/videofifo
+
+#mkdir -p $LOGPATH
+
+
+LOGNUMBER=0
+if [ -f $MOUNTPATH/lastlog.txt ]
 then
-	# Test-Bech!
-	echo "$(date)   -   PowerUp in test bech"
+	LOGNUMBER=`cat $MOUNTPATH/lastlog.txt`
 else
+	echo "0" > $MOUNTPATH/lastlog.txt
+fi
+
+let LOGNUMBER++
+echo "$LOGNUMBER" > $MOUNTPATH/lastlog.txt
+FOLDER=$(printf "%06d" $LOGNUMBER)
+
+DATAFOLDER=$MOUNTPATH/$FOLDER
+mkdir $DATAFOLDER
+
+LOGFOLDER=$DATAFOLDER/log
+LOG=$LOGFOLDER/$LOGFILE
+mkdir $LOGFOLDER
+
+
+
+
+#gpio mode 25 in
+# Set the variable through command substitution
+#mode=$(gpio read 25)
+
+
+#if [ $mode -gt 0 ]
+#then
+	# Test-Bech!
+#	echo "$(date)   -   PowerUp in test bech"
+	
+#	start_camera
+	
+#else
 	# Drone!
+		#Rotate log
 
-	#Rotate log
-	LOGNUMBER=0
-	if [! -f $MOUNTPATH/lastlog.txt]
-	then
-		echo "0" > $MOUNTPATH/lastlog.txt
-	else
-		LOGNUMBER=`cat $MOUNTPATH/lastlog.txt`
-	fi
 
-	let LOGNUMBER++
-	echo "$LOGNUMBER" > $MOUNTPATH/lastlog.txt
-	FOLDER=$(printf "%06d" $LOGNUMBER)
+    # Drone!
+   # echo "$(date)   -   Power Up as drone" >> $LOG
+#	echo "$(date)   -   Starting OpenHD-LTE $VERSION" >> $LOG
+#	echo "$(date)   -   Setting up LTE modem:" >> $LOG
+	
+	echo "Setting up LTE modem..." | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	ip link set wwan0 down 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	echo 'Y' | sudo tee /sys/class/net/wwan0/qmi/raw_ip 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	sudo ip link set wwan0 up 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	sudo qmicli -d /dev/cdc-wdm0 --wda-get-data-format 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	sudo qmicli -p -d /dev/cdc-wdm0 --device-open-net='net-raw-ip|net-no-qos-header' --wds-start-network="apn='$APN',ip-type=4" --client-no-release-cid 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	sudo udhcpc -q -f -i wwan0 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG	
+#	$AIRSTARTSCRIPT/4gConnect.sh $AIRSTARTSCRIPT 2>&1 >> $LOG 
+	echo "LTE modem setup complete." | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	# echo "$(date)   -   LTE modem setup complete" >> $LOG
 
-	DATAFOLDER=$MOUNTPATH/$FOLDER
-	mkdir $DATAFOLDER
+	sleep 2
+	
+	echo "Starting OpenHD-LTE Air side version $VERSION" | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	echo "Updating Firmware...." | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	$AIRSTARTSCRIPT/firmwareUpdate.sh $AIRSTARTSCRIPT 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
 
-	LOGFOLDER=$DATAFOLDER/log
-	LOG=$LOGFOLDER/$LOGFILE
-	mkdir $LOGFOLDER
+	sleep 1
 
-        # Drone!
-        echo "$(date)   -   Power Up as drone" >> $LOG
-	echo "$(date)   -   Starting OpenHD-LTE $VERSION" >> $LOG
-	echo "$(date)   -   Setting up LTE modem:" >> $LOG
-	/boot/air/4gConnect.sh >> $LOG 2>&1
-	echo "$(date)   -   LTE modem setup complete" >> $LOG
+	## Test Camera:
+	echo "Testing camera:" | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	raspistill -o test.jpg 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
 
-	mkdir -p /var/run/openhd
-	mkfifo /var/run/openhd/videofifo
-
-	/boot/air/startCamera.sh $LOG &
-	/boot/air/startTXraw.sh $LOG $DATAFOLDER /boot/air $IP &
-
+	$AIRSTARTSCRIPT/startCamera.sh $AIRSTARTSCRIPT $LOG &
+	sleep 1
+	$AIRSTARTSCRIPT/startTXraw.sh $AIRSTARTSCRIPT $LOG $DATAFOLDER &
+	
 	cp /var/log/messages $LOGFOLDER/messages
 	dd if=/dev/null of=/var/log/messages
 	tail -f -n 0 /var/log/messages >> $LOGFOLDER/messages &
@@ -63,22 +98,23 @@ else
 
 	cp /var/log/daemon.log $LOGFOLDER/daemon.log
 	dd if=/dev/null of=/var/log/daemon.log
-        tail -f -n 0 /var/log/daemon.log >> $LOGFOLDER/daemon.log &
+    tail -f -n 0 /var/log/daemon.log >> $LOGFOLDER/daemon.log &
 
 	cp /var/log/kern.log $LOGFOLDER/kern.log
 	dd if=/dev/null of=/var/log/kern.log
-        tail -f -n 0 /var/log/kern.log >> $LOGFOLDER/kern.log &
+    tail -f -n 0 /var/log/kern.log >> $LOGFOLDER/kern.log &
 
-        cp /var/log/auth.log $LOGFOLDER/auth.log
-        dd if=/dev/null of=/var/log/auth.log
-        tail -f -n 0 /var/log/auth.log >> $LOGFOLDER/auth.log &
+    cp /var/log/auth.log $LOGFOLDER/auth.log
+    dd if=/dev/null of=/var/log/auth.log
+    tail -f -n 0 /var/log/auth.log >> $LOGFOLDER/auth.log &
 
-        cp /var/log/user.log $LOGFOLDER/user.log
-        dd if=/dev/null of=/var/log/user.log
-        tail -f -n 0 /var/log/user.log >> $LOGFOLDER/user.log &
+    cp /var/log/user.log $LOGFOLDER/user.log
+    dd if=/dev/null of=/var/log/user.log
+    tail -f -n 0 /var/log/user.log >> $LOGFOLDER/user.log &
 
-        cp /var/log/debug $LOGFOLDER/debug
-        dd if=/dev/null of=/var/log/debug
-        tail -f -n 0 /var/log/debug >> $LOGFOLDER/debug &
+    cp /var/log/debug $LOGFOLDER/debug
+    dd if=/dev/null of=/var/log/debug
+    tail -f -n 0 /var/log/debug >> $LOGFOLDER/debug &
 
-fi
+	sync
+#fi

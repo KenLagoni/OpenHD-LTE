@@ -6,7 +6,7 @@ INSTALLPATH=$1
 mkdir -p $INSTALLPATH/data/log
 
 #Start the rtsp server
-$INSTALLPATH/rtsp-simple-server 1>>$INSTALLPATH/data/log/rtsp_run.log 2>>$INSTALLPATH/data/log/rtsp_error.log &
+#$INSTALLPATH/rtsp-simple-server 1>> $INSTALLPATH/data/log/rtsp_run.log 2>>$INSTALLPATH/data/log/rtsp_error.log &
 
 ### RTSP upload settings:
 IP="127.0.0.1"
@@ -34,7 +34,12 @@ BITERATE="5000000"
 	
 	# Encode the video from CSI module (Video+OSD outputed on HDMI from RPI OpenHD) and split the output to two. 1. upload it to local RTSP server and 2. pipe video to record program.
     #gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! h264parse ! fdsink | ./videoRecord -p 6000 -f record > /dev/null
-	gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! h264parse ! fdsink | ./videoRecord -p 6000 -f record > /dev/null 1> | ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log
+	
+	gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p 6000 -f record > /dev/null | ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log
+	
+	#Also show stream on RPI HDMI for local display, not working yet :-(
+	#gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! tee name=t ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p 6000 -f record > /dev/null | ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log t. ! h264parse ! avdec_h264 ! xvimagesink
+	
 	echo "gst-launch-1.0 v4l2src, restarting and sleeping for 5s ..." | ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log
 
 #	sleep 5

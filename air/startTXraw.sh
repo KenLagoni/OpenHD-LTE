@@ -1,14 +1,15 @@
 #!/bin/bash
-LOG=$1
-VIDEOSAVEPATH=$2
-SCRIPTPATH=$3
-IP=$4
+
+source $1/air-settings.sh
+
+LOG=$2
+VIDEOSAVEPATH=$3
 
 for (( ; ; ))
 do
-	echo "$(date)   -   Starting TX_RAW" >> $LOG
-	cat /var/run/openhd/videofifo | $SCRIPTPATH/tx_raw -i $IP -v 7000 -s /dev/serial0 -p 12000 -t 5200 -o $VIDEOSAVEPATH/record -z 2000 >> $LOG 2>&1
-      	echo "$(date)   -   TX_RAW - Crashed! - Restarting in 10 seconds..." >> $LOG
-      	sleep 10
+	echo "Starting TX_RAW to IP=$IP VIDEO_PORT=$VIDEOPORT MAVLINK_PORT=$MAVLINKPORT TELEMETRY_PORT=$TELEMETRIPORT with max recording size of "$FILEMAX"MB." | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+	cat /var/run/openhd/videofifo | $AIRSTARTSCRIPT/tx_raw -i $GROUND_IP -v $VIDEOPORT -s /dev/serial0 -p $MAVLINKPORT -t $TELEMETRIPORT -o $VIDEOSAVEPATH/record -z $FILEMAX 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG 
+	echo "TX_RAW - Crashed! - Restarting in 10 seconds..." | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
+    sleep 10
 done
 

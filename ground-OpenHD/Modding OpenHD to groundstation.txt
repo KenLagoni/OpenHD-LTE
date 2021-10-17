@@ -1,0 +1,146 @@
+Starting with OpenHD image: Open.HD-2.0.8-buster.img
+
+SSH login:
+user: pi
+password: raspberry
+
+First lets force it to groundtation mode even though no camera is connected:
+$ sudo nano -l /root/.profile
+Remove line 33:
+#    export CAM=`/usr/bin/vcgencmd get_camera | python3 -c 'import sys, re; s = sys.stdin.read(); s=re.sub("supported=\d+ detected=", "", s); print(s);'`
+And add line 34:
+export CAM=0
+
+Remove Line 115 so we don't run NICS setup:
+# /usr/local/share/wifibroadcast-scripts/configure_nics.sh
+Remove line 118 (the qstatus message):
+# qstatus "Configured NIC(s)" 5
+
+
+
+
+$ sudo nano -l /usr/local/share/wifibroadcast-scripts/global_functions.sh
+Remove line 376 and 377 and add "grepRet=1" in line 378: (This will set HDMI_CSI=0, but this is only used in tx_function which we don't run) so perhaps not relevant.
+#    i2cdetect -y 0 | grep  "0f"
+#    grepRet=$?
+	grepRet=1
+
+Change line 400 from:
+CAM=`/usr/bin/vcgencmd get_camera | python3 -c 'import sys, re; s = sys.stdin.read(); s=re.sub("supported=\d+ detected=", "", s); print(s);'`
+to:
+CAM=0
+
+
+
+
+
+#for DEBUG:
+Adding ll alias to .bashrc : "alias ll='ls -l'"
+Add these lines in /usr/local/share/wifibroadcast-scripts/main.sh to make the rx_raw update in reboot. (because they are locked when OpenHD is running and thus hard to update.
+cp /home/pi/rx_raw /usr/local/bin/
+chmod 755 /usr/local/bin/rx_raw
+
+
+
+Til at modtage brugt rx:_raw for video og telemetri copy rx_raw to /usr/local/bin/:
+sudo cp rx_raw /usr/local/bin/
+And make it executable
+sudo chmod 755 /usr/local/bin/rx_raw
+
+
+
+In: sudo nano -l /usr/local/share/wifibroadcast-scripts/alive_functions.sh
+Add linie 45 and make sure it doesn't get put to the back by omitting the & in the end. This will make keep alive hang here, dirty but it works: 
+44:  ionice -c 1 -n 4 nice -n -10 cat /var/run/openhd/videofifo1 | ionice -c 1 -n 4 nice -n -10 ${DISPLAY_PROGRAM} ${HELLO_VIDEO_ARGS} > /dev/null 2>&1 &
+45:  ionice -c 1 -n 3 /usr/local/bin/rx_raw -p 7000 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
+
+In:
+sudo nano -l /usr/local/share/wifibroadcast-scripts/rx_functions.sh 
+#### OLD? 
+####Remove Line 480 if state regardig memory 
+####add line 480 and make sure the settings parameter VIDEO_TMP is memory (or just not "none").
+####ionice -c 1 -n 3 /usr/local/bin/rx_raw -p 7000 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
+
+Reomve line 484 to 488 (if [ "$VIDEO_TMP" != "none" ]; then) and add Line 483:
+ionice -c 1 -n 3 /usr/local/bin/rx_raw -v 7000 -m 12000 -t 5200 -i 192.168.0.8 -r 14450 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
+
+
+
+
+
+In: 
+sudo nano -l /usr/local/share/wifibroadcast-scripts/osd_rx_functions.sh
+Line 28-32:
+ 28 #            TELEMETRY_RX_CMD="cat ${EXTERNAL_TELEMETRY_SERIALPORT_GROUND}"
+ 29 #            TELEMETRY_RX_CMD="/usr/local/bin/rx_raw -p 12000 -i 192.168.0.8 -r 14550"
+ 30              TELEMETRY_RX_CMD="nc -l 11112"
+ 31
+ 32 #            TELEMETRY_RX_CMD="/usr/local/bin/rx_raw -p 12000 -i 192.168.0.67 -r 14450"
+
+### Old?
+###TELEMETRY_RX_CMD="cat ${EXTERNAL_TELEMETRY_SERIALPORT_GROUND}"
+###with this:
+#####TELEMETRY_RX_CMD="/usr/local/bin/rx_raw -p 8000"
+####TELEMETRY_RX_CMD="/usr/local/bin/rx_raw -p 12000 -i 192.168.0.8 -r 14450"
+####And make sure TELEMETRY_TRANSMISSION is set to "external" and not "wbc" in settings file.
+
+
+
+
+In /boot/config.txt (to mount rw: "sudo mount -o remount,rw /boot":
+
+Force video output:
+hdmi_force_hotplug=1
+
+For 1920x1080p 25Hz output to CSI recorder (not supported due to bug in v4l2):
+hdmi_group=1
+hdmi_mode=33
+
+For 1280x720p 30Hz output to CSI recorder (currently maximum resolution)
+hdmi_group=1
+hdmi_mode=62
+
+
+
+#### Static IP #####
+$ sudo nano -l /etc/network/interfaces.d/openhd
+auto lo
+iface lo inet loopback
+auto eth0
+allow-hotplug eth0
+iface eth0 inet static
+        address 192.168.0.10
+        netmask 255.255.255.0
+        gateway 192.168.0.1
+
+Ensure Static IP is not reset after ~10sec after boot due to DHCP script in:
+$ sudo nano -l /usr/local/share/wifibroadcast-scripts/main.sh
+add the following do-while-forever:
+181         # Stop here to ensure Static IP is not set back to DHCP.
+182         while [ 1 ]; do
+183             sleep 0.5
+184         done
+
+
+
+
+
+
+$ sudo nano -l /usr/local/share/wifibroadcast-scripts/main.sh 
+Disable hospot function (rssi_forward) 
+287 #            MAIN_HOTSPOT_FUNCTION
+
+Diasble RSSIRX
+275 #            MAIN_RSSI_RX_FUNCTION
+
+
+
+
+
+
+
+
+
+
+
+
