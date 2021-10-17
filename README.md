@@ -52,6 +52,6 @@ OSD and video:
 
 # How to Build
 Start with the ground pi for recording, since it is needed on the network to install the air side.\
--For instructions on how to create the ground-side OpenHD SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/ground-OpenHD)
--For instructions on how to create the air-side SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/air).  
+-For instructions on how to create the ground-side OpenHD SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/ground-OpenHD)\
+-For instructions on how to create the air-side SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/air).\
 -For instructions on how to create the ground-side SD card see [Here](https://github.com/KenLagoni/OpenHD-LTE/tree/main/ground-VideoRecord)
