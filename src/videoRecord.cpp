@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 				exit(1);
 			}else  if(result == 0){
 				// EOF
-				fprintf(stderr, "Video Record: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
+				// printf(stderr, "Video Record: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
 			}else { // Data from video pipe.
 				// Write data to STDOUT.
 				write(STDOUT_FILENO, inputBuffer, result);
