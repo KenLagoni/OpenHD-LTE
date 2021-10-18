@@ -15,6 +15,9 @@ sudo apt-get update
 #install ts (for timestamp) in moreutils packages
 sudo apt install moreutils -y
 
+#install ffmpeg to convert h264 to mp4:
+sudo apt install ffmpeg -y
+
 ### Add cma=256M to the end of /boot/cmdline.txt, but first ensure to remove all spaces after last charactor, to ensure we don't insert two spaces if user added spaces after last char.
 sudo bash -c "sed 's/ *$//' /boot/cmdline.txt > tmp" && sudo mv tmp /boot/cmdline.txt && sudo truncate -s-1 /boot/cmdline.txt && sudo bash -c 'echo -n " cma=256M" >> /boot/cmdline.txt'
 
