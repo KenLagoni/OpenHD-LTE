@@ -366,8 +366,8 @@ int main(int argc, char *argv[])
 									    // convert now to tm struct for UTC
 									    tm *gmtm = gmtime(&now);
 										
-										sprintf(recordename,"%02d-%02d-%04d_%02d-%02d-%02d_%s.h264",gmtm->tm_mday,gmtm->tm_mday,gmtm->tm_year+1900,gmtm->tm_hour,gmtm->tm_min,gmtm->tm_sec,filename);
-										sprintf(mp4name,"%02d-%02d-%04d_%02d-%02d-%02d_%s.mp4",gmtm->tm_mday,gmtm->tm_mday,gmtm->tm_year+1900,gmtm->tm_hour,gmtm->tm_min,gmtm->tm_sec,filename);																				
+										sprintf(recordename,"%02d-%02d-%04d_%02d-%02d-%02d_%s.h264",gmtm->tm_mday,gmtm->tm_mon,gmtm->tm_year+1900,gmtm->tm_hour,gmtm->tm_min,gmtm->tm_sec,filename);
+										sprintf(mp4name,"%02d-%02d-%04d_%02d-%02d-%02d_%s.mp4",gmtm->tm_mday,gmtm->tm_mon,gmtm->tm_year+1900,gmtm->tm_hour,gmtm->tm_min,gmtm->tm_sec,filename);																				
 										videoRecordFile = new std::ofstream(recordename,std::ofstream::binary);
 																														
 										videoRecordFile->write(buf,sizeof(buf));	 // write header to output file									
