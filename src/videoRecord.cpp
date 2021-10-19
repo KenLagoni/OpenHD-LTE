@@ -148,6 +148,11 @@ int main(int argc, char *argv[])
 	int chan = MAVLINK_COMM_0;
 
 	bool armed=false;
+	//Mavlink log
+	float latitude; /*< [degE7] Latitude (WGS84)*/
+	float longitude; /*< [degE7] Longitude (WGS84)*/
+	float altitude; /*< [mm] Altitude (MSL). Positive for up.*/
+	float altitudeMSL;
 
 	if(mavlinkPort==0){
 		armed=true;
@@ -272,6 +277,23 @@ int main(int argc, char *argv[])
 							}
 							armed = newmsg.base_mode & MAV_MODE_FLAG_SAFETY_ARMED;
 						}
+						//fprintf(stderr, "Mavlink MSG: %d\n", msg.msgid);
+						if(msg.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT){ //#33
+							//fprintf(stderr, "Mavlink MSG: %d\n", msg.msgid);
+							mavlink_global_position_int_t newmsg;
+							mavlink_msg_global_position_int_decode(&msg, &newmsg);
+							latitude =  ((float)newmsg.lat)/10000000;
+							longitude = ((float)newmsg.lon)/10000000;
+							altitudeMSL = ((float)newmsg.alt)/1000;
+							altitude = ((float)newmsg.alt)/1000;
+							fprintf(stderr, "Last known drone position: (%.6f;%.6f) Altitude (MSL):%.0f [meters] Altitude (above ground):%.0f [meters]",latitude,longitude, altitudeMSL, altitude);
+							//fprintf(stderr, "Last known drone position: %.6f",latitude);
+							if(true==armed){			
+								fprintf(stderr, " FC=ARMED\n");							
+							}else{
+								fprintf(stderr, " FC=DISARMED\n");							
+							}	
+						}
 					}				
 				}
 			}
@@ -296,7 +318,7 @@ int main(int argc, char *argv[])
 				// printf(stderr, "Video Record: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
 			}else { // Data from video pipe.
 				// Write data to STDOUT.
-				write(STDOUT_FILENO, inputBuffer, result);
+				//write(STDOUT_FILENO, inputBuffer, result);
 
 				// Record: Scan all data while file is not created, (looking for header and P frame)
 				if( (false==recordStream.SPSHeaderFound) || (false==recordStream.PPSHeaderFound) || (false==recordStream.fileCreated) ){
