@@ -2,6 +2,7 @@
 
 int flagHelp = 0;
 
+
 void usage(void) {
 	printf("\nUsage: rx_raw [options]\n"
 	"\n"
@@ -132,7 +133,9 @@ int main(int argc, char *argv[])
 	}
 		
 	// For UDP/TCP Sockets
-	Connection inputVideoConnection(videoPort, SOCK_DGRAM); // UDP port
+	Connection inputVideoConnectionListener(videoPort, SOCK_STREAM); // TCP listen.
+	Connection inputVideoConnection; // TCP port keep empty until TCP listen has been connected.
+	//Connection inputVideoConnection(videoPort, SOCK_STREAM);
 	Connection outputVideoConnection("127.0.0.1", OUTPUT_VIDEO_PORT, SOCK_DGRAM); 
 
 	// For UDP/TCP Sockets
@@ -201,35 +204,39 @@ int main(int argc, char *argv[])
 	 telmetryData.adapter[4].signal_good = 0xd0;
 	 telmetryData.adapter[5].signal_good = 0xc4;
 	
-	
-	
-	
-	
-	
+		
 //	videoStream_t recordStream; // 0x27 First header in h.264 stream
 //	bzero(&recordStream, sizeof(recordStream));
 	
 	do{
 		FD_ZERO(&rset); 
-		inputVideoConnection.setFD_SET(&rset);
-		outputVideoConnection.setFD_SET(&rset);
-
 		inputMavlinkConnection.setFD_SET(&rset);
 		outputMavlinkConnection.setFD_SET(&rset);
+		
+		inputVideoConnectionListener.setFD_SET(&rset); // For TCP
+		if(inputVideoConnection.getFD() != 0){ // only include id connection is valid
+			inputVideoConnection.setFD_SET(&rset);			
+		}
+		outputVideoConnection.setFD_SET(&rset);
 
 		inputTelemetryConnection.setFD_SET(&rset);
 		outputTelemetryConnection.setFD_SET(&rset);		
 				
+						
+				
 		if(relayPort != 0){
 			relayConnection->setFD_SET(&rset);			
-			maxfdp1 = max(inputVideoConnection.getFD(), relayConnection->getFD());
+			maxfdp1 = max(inputMavlinkConnection.getFD(), relayConnection->getFD());
 		}else{
-			maxfdp1 = inputVideoConnection.getFD();
+			maxfdp1 = inputMavlinkConnection.getFD();
 		}
-		maxfdp1 = max(maxfdp1, outputVideoConnection.getFD());
-		
-		maxfdp1 = max(maxfdp1, inputMavlinkConnection.getFD());
 		maxfdp1 = max(maxfdp1, outputMavlinkConnection.getFD());
+		
+		maxfdp1 = max(maxfdp1, inputVideoConnectionListener.getFD());		
+		if(inputVideoConnection.getFD() != 0){ // only include id connection is valid
+			maxfdp1 = max(maxfdp1, inputVideoConnection.getFD());
+		}
+		maxfdp1 = max(maxfdp1, outputVideoConnection.getFD());				
 		
 		maxfdp1 = max(maxfdp1, inputTelemetryConnection.getFD());
 		maxfdp1 = max(maxfdp1, outputTelemetryConnection.getFD());
@@ -240,62 +247,32 @@ int main(int argc, char *argv[])
 		
 		nready = select(maxfdp1+1, &rset, NULL, NULL, &timeout); // since we are blocking, wait here for data.//
 		
+		// Listen for TCP connection for video TCP
+		if (FD_ISSET(inputVideoConnectionListener.getFD(), &rset)) { 
+				fprintf(stderr, "RX: Incomming TCP connection. \n");
+				inputVideoConnection.startConnection(inputVideoConnectionListener.getFD());
+		}
+		
 		// Video DATA from Drone		
 		if (FD_ISSET(inputVideoConnection.getFD(), &rset)) { 
+			
 			int result = 0;
 			result = inputVideoConnection.readData(rxBuffer, RX_BUFFER_SIZE);
 			
 			//printf("Read result:%d\n\r", n);
 			if (result < 0 || result > RX_BUFFER_SIZE) {
-				fprintf(stderr, "RX: Error on Input video UDP Socket Port: %d, Terminate program.\n", videoPort);
-				exit(EXIT_FAILURE);
+				// If TCP that means server connection is lost:
+				
+				// Establish connection again!
+
+							
+				// IF UDP
+				// fprintf(stderr, "RX: Error on Input video UDP Socket Port: %d, Terminate program.\n", videoPort);
+				// exit(EXIT_FAILURE);
 			}else  if(result == 0){
 				// None blocking, nothing to read.
 			}else {	
 				write(STDOUT_FILENO, rxBuffer, result);		// also write to STDOUT.	
-			//	outputVideoConnection.writeData(rxBuffer, result);
-			/*
-				// Record:
-				if((false==recordStream.SPSHeaderFound) || (false==recordStream.PPSHeaderFound)){
-					for(int a =0;a<result-5;a++){
-						if(rxBuffer[a] == 0x00 && rxBuffer[a+1] == 0x00 && rxBuffer[a+2] == 0x00 && rxBuffer[a+3] == 0x01){ // Header code found
-							if(rxBuffer[a+4] == SPS_HEADER_CODE){
-								fprintf(stderr, "RX: Video SPS 0x27 header found!\n");
-								for(int b=0; b<SPS_HEADER_SIZE; b++){
-									if(a+SPS_HEADER_SIZE < result){
-										recordStream.SPSHeader[b]=rxBuffer[a+5];
-										fprintf(stderr, "0x%2d ",recordStream.SPSHeader[b]);
-									}
-								}
-								recordStream.SPSHeaderFound = true;
-								fprintf(stderr, "\n");
-							}else if(rxBuffer[a+4] == PPS_HEADER_CODE){
-								fprintf(stderr, "RX: Video PPS 0x28 header found!: ");
-								for(int b=0; b<PPS_HEADER_SIZE; b++){
-									if(a+PPS_HEADER_SIZE < result){
-										recordStream.PPSHeader[b]=rxBuffer[a+5];
-										fprintf(stderr, "0x%2d ",recordStream.PPSHeader[b]);
-									}
-								}
-								recordStream.PPSHeaderFound = true;
-								fprintf(stderr, "\n");
-							}
-						}				
-					}
-				}else{
-					if(false==fileCreated){ // create file with header:
-						
-						
-						
-					}else{ // write data to file
-						
-						
-					}
-					
-					
-					
-				}
-			*/
 				linkstatus.rx += (float)result;
 			}
 		}
@@ -420,8 +397,8 @@ int main(int argc, char *argv[])
 			
 			// Sendt the Telemtry frame to QOpenHD.
 			telmetryData.kbitrate = (linkstatus.rx*8)/1024; // Video kbit rate.
-			telmetryData.HomeLat = 55.806341;
-			telmetryData.HomeLon = 12.537463;
+			telmetryData.HomeLat = 0;
+			telmetryData.HomeLon = 0;
 			int res = 0;
 			res = outputTelemetryConnection.writeData(&telmetryData, 113);
 			

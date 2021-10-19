@@ -38,10 +38,9 @@ class Connection
 	void setFD(int fd);
 	int16_t readData(void *buffer, uint16_t length);
 	int16_t writeData(void *buffer, uint16_t length);
+	int getType(void);
 
 	void initConnection();
-	void initConnection(int port, int type);
-	void initConnection(int port, int type, int flags);
 	
 	protected:
 			
@@ -54,6 +53,7 @@ class Connection
 	bool isValid = false;
 	
 	void print_ipv4(struct sockaddr *s);
+	void clearAll(void);
 };
 
 

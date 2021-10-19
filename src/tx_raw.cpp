@@ -181,7 +181,8 @@ int main(int argc, char *argv[]) {
 		 maxFileSize=DEFAULT_MAX_VIDEO_FILE_SIZE;
 	 }
 
-	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking	
+//	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking	
+	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_STREAM, O_NONBLOCK); // TCP None blocking	
 	Connection serialToBaseConnection(targetIp,udpSerialPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking
 	
 	// For UDP Sockets

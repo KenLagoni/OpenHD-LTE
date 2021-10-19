@@ -51,7 +51,7 @@
 #define SERIAL_BAUDRATE 57600 //**** TODO also implement it in open_port
 #define LOG_INTERVAL_SEC 1 // log every minute
 
-#define VIDEO_RETRY_ATTEMPTS 0
+#define VIDEO_RETRY_ATTEMPTS 3
 
 
 int max(int x, int y)

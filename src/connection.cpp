@@ -9,102 +9,120 @@
 // Constructor
 
  Connection::Connection(){
+	this->clearAll();
+ }
+ 
+ Connection::Connection(int port, int type){
+	this->clearAll();
+	this->_type=type;
+	this->_port=port;
+	this->isValid = false; // Can't send yet until we receive msg from sender (server)
+	this->initConnection();
+ }
+ 
+  
+  Connection::Connection(int port, int type, int flags){
+	  this->clearAll();
+	  this->_type=type;
+	  this->_port=port;
+	  this->_flags=flags;
+	  this->isValid = false; // Can't send yet until we receive msg from sender (server)
+	  this->initConnection();
+  }
+ 
+  Connection::Connection(const char* hostname, int port, int type, int flags){
+	this->clearAll();
+	this->_type=type;
+	this->_port=port;
+	this->_flags=flags;
+	
+	// send to hostname on Port.
+	this->_cliaddr.sin_family = AF_INET; 
+	this->_cliaddr.sin_addr.s_addr = inet_addr(hostname); 
+	this->_cliaddr.sin_port = htons(this->_port); 
+
+	this->isValid=true; // We can send right away because we know the receiver
+	this->initConnection();
+ }
+
+  Connection::Connection(const char* hostname, int port, int type){
+	this->clearAll();
+	this->_type=type;
+	this->_port=port;
+	this->_flags=0;
+	
+	// send to hostname on Port.
+	this->_cliaddr.sin_family = AF_INET; 
+	this->_cliaddr.sin_addr.s_addr = inet_addr(hostname); 
+	this->_cliaddr.sin_port = htons(this->_port); 
+	
+	this->isValid=true; // We can send right away because we know the receiver
+	this->initConnection();
+  }
+
+void Connection::clearAll(){
 	this->_fd=0;
 	this->_port=0;
 	this->_type=0;
 	this->_flags=0;
 	bzero(&this->_servaddr, sizeof(this->_servaddr));	
 	bzero(&this->_cliaddr, sizeof(this->_cliaddr));	
- }
- 
- Connection::Connection(int port, int type){
-	this->_fd=0;
-	this->_type=type;
-	this->_port=port;
-	this->_flags=0;
-	bzero(&this->_servaddr, sizeof(this->_servaddr));	
-	bzero(&this->_cliaddr, sizeof(this->_cliaddr));	
-	this->initConnection();
- }
- 
-  
-  Connection::Connection(int port, int type, int flags){
-	  this->_fd=0;
-	  this->_type=type;
-	  this->_port=port;
-	  this->_flags=flags;
-	  bzero(&this->_servaddr, sizeof(this->_servaddr));
-	  bzero(&this->_cliaddr, sizeof(this->_cliaddr));
-	  this->initConnection();
   }
- 
- // Only supports UDP and is set to non-blocking
-  Connection::Connection(const char* hostname, int port, int type, int flags){
-	this->_fd=0;
-	this->_type=type;
-	this->_port=port;
-	this->_flags=flags;
-	//this->initConnection(port, type);
-	bzero(&this->_servaddr, sizeof(this->_servaddr));	
-	bzero(&this->_cliaddr, sizeof(this->_cliaddr));	
-	
-	// send to hostname on Port.
-	this->_cliaddr.sin_family = AF_INET; 
-	this->_cliaddr.sin_addr.s_addr = inet_addr(hostname); 
-	this->_cliaddr.sin_port = htons(this->_port); 
-			
-	this->initConnection();	
-    
-	this->isValid=true; // We can send right away because we know the receiver
- }
 
-  // Only supports UDP and is set to non-blocking
-  Connection::Connection(const char* hostname, int port, int type){
-	this->_fd=0;
-	this->_type=type;
-	this->_port=port;
-	this->_flags=0;
-	//this->initConnection(port, type);
-	bzero(&this->_servaddr, sizeof(this->_servaddr));
-	bzero(&this->_cliaddr, sizeof(this->_cliaddr));
-	
-	// send to hostname on Port.
-	this->_cliaddr.sin_family = AF_INET;
-	this->_cliaddr.sin_addr.s_addr = inet_addr(hostname);
-	this->_cliaddr.sin_port = htons(this->_port);
-	
-	this->initConnection();
-	
-	this->isValid=true; // We can send right away because we know the receiver
-}
+
  
-void Connection::initConnection(int port, int type){
-	this->_type=type;
-	this->_port=port;
-	this->initConnection();
-}
-void Connection::initConnection(int port, int type, int flags){
-	this->_type=type;
-	this->_port=port;
-	this->_flags=flags;
-	this->initConnection();
-}
- 
- void Connection::initConnection(){ 
+void Connection::initConnection(){
+	int err = 0;	
+	
 	// Listen on port, from hostname IP.
 	this->_servaddr.sin_family = AF_INET; 
 	this->_servaddr.sin_addr.s_addr = INADDR_ANY; 
 	this->_servaddr.sin_port = htons(this->_port); 
 	
-	if(this->_type == SOCK_STREAM){
+	if(this->_type == SOCK_STREAM && this->isValid == false){ // TCP server (listing for TCP connection)
 	    // create listening TCP socket 
 		if ( (this->_fd  = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
 			perror("Connection: TCP socket creation failed");
 			exit(EXIT_FAILURE);
 		}
 		// binding server addr structure to this->_fd 
-		bind(this->_fd, (struct sockaddr*)&this->_servaddr, sizeof(this->_servaddr)); 
-		listen(this->_fd, 10); 		
+
+		if(bind(this->_fd, (struct sockaddr*)&this->_servaddr, sizeof(this->_servaddr)) < 0){
+			err = errno; // save off errno, because because the printf statement might reset it
+			fprintf(stderr, "Connection: TCP Bind unable ERNO:%d\n", err);
+		} 
+		if(listen(this->_fd, 10) < 0){
+			err = errno; // save off errno, because because the printf statement might reset it
+			fprintf(stderr, "Connection: TCP Listen unable ERNO:%d\n", err);
+		} 
+		printf("Connection: initConection server: ");
+		this->print_ipv4((struct sockaddr*)&this->_servaddr);
+		printf("\n");
+		
+		fprintf(stderr, "Connection: Listen for TCP connection\n");
+	}else if(this->_type == SOCK_STREAM && this->isValid == true){ // TCP client (connect to server)
+		
+		printf("Connection: initConection client: ");
+		this->print_ipv4((struct sockaddr*)&this->_cliaddr);
+		printf("\n");
+	
+		// connect to TCP socket 
+		if ( (this->_fd  = socket(AF_INET, SOCK_STREAM, 0)) < 0 ) {
+				perror("Connection: TCP socket creation failed");
+				exit(EXIT_FAILURE);
+		}
+		// connect to server (here called client :-( )
+		int ress=0;
+		ress = connect(this->_fd, (struct sockaddr*)&this->_cliaddr, sizeof(this->_cliaddr));
+		if (ress < 0); 
+		
+		{
+			err = errno; // save off errno, because because the printf statement might reset it
+			printf("\nTCP connection failed to connect reason:%d with ERNO:%d.\n",ress,err);
+			if(err != 0){
+				this->isValid=false; // Unable to bind, true again later.
+			}
+		}
 	}else if(this->_type == SOCK_DGRAM){
 		// create UDP socket 
 		if ( (this->_fd  = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
@@ -119,7 +137,7 @@ void Connection::initConnection(int port, int type, int flags){
 		// unknown
 	}
 	
-	// Set to nonblocking / blokcing
+	// Set to nonblocking / blocking
 	if(O_NONBLOCK == this->_flags){
 		//printf("NONE BLOVKING for fd=%d",this->_fd);
 		int status = fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) | O_NONBLOCK);
@@ -134,9 +152,16 @@ void Connection::initConnection(int port, int type, int flags){
 	socklen_t len; 
 	len=sizeof(this->_cliaddr);
 	this->_fd = accept(fd, (struct sockaddr*)&this->_cliaddr, &len);
+/*	
+	printf("Connection: startconnection client: ");
+	this->print_ipv4((struct sockaddr*)&this->_cliaddr);
+	printf("Connection: startconnection server: ");
+	this->print_ipv4((struct sockaddr*)&this->_servaddr);
+	printf("\n");
+	*/
 	this->isValid=true;
  }
-   
+  
 
  void Connection::setFD_SET(fd_set* fdset){
 	FD_SET(this->_fd, fdset); 
@@ -150,11 +175,24 @@ void Connection::initConnection(int port, int type, int flags){
 	this->_fd = fd;
  }
  
+ 
+ int Connection::getType(void){
+	return this->_type;
+ }
+ 
 
  int16_t Connection::readData(void *buffer, uint16_t maxLength){ // returns number of bytes read.
 	 int n;
 	 socklen_t len; 
 	 len=sizeof(this->_cliaddr);
+
+//	printf("Connection: readData client: ");
+//	this->print_ipv4((struct sockaddr*)&this->_cliaddr);
+//	printf("Connection: readData server: ");
+//	this->print_ipv4((struct sockaddr*)&this->_servaddr);
+//	printf("\n");
+
+
 
 	 int err;
 	// this->print_ipv4((struct sockaddr*)&this->_cliaddr);
@@ -182,6 +220,8 @@ void Connection::initConnection(int port, int type, int flags){
 				 fprintf(stderr, "Connection: The socket is associated with a connection-oriented protocol and has not been connected.\n\r");
 			 }else if(err == ENOTSOCK){
 				 fprintf(stderr, "Connection: The file descriptor sockfd does not refer to a socket.\n\r");
+			 }else if(err == -1){
+				 fprintf(stderr, "Connection: Socket invalid, thus closing file descriptor.\n\r");
 			 }else{
 				 fprintf(stderr, "Connection: Unknown error - reading with result=%d, thus closing\n",(int)n);
 			 }	 
@@ -204,9 +244,16 @@ void Connection::initConnection(int port, int type, int flags){
 	if(this->isValid){
 		int err;
 
-		//printf("Connection: Sending %d bytes to ", length);
-		//this->print_ipv4((struct sockaddr*)&this->_cliaddr);
-		//printf("\n");
+//		printf("Connection: Sending %d bytes to ", length);
+//		this->print_ipv4((struct sockaddr*)&this->_cliaddr);
+//		printf("\n");
+
+//		printf("Connection: writeData client: ");
+//		this->print_ipv4((struct sockaddr*)&this->_cliaddr);
+//		printf("Connection: writeData server: ");
+//		this->print_ipv4((struct sockaddr*)&this->_servaddr);
+//		printf("\n");
+
 
 		n = sendto(this->_fd, buffer, length, 0, (struct sockaddr *)&this->_cliaddr, len);
 		err = errno; // save off errno, because because the printf statement might reset it
