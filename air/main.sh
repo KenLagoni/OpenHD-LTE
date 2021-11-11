@@ -84,8 +84,8 @@ mkdir $LOGFOLDER
 	echo "Testing camera:" | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
 	raspistill -o test.jpg 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
 
-	$AIRSTARTSCRIPT/startCamera.sh $AIRSTARTSCRIPT $LOG &
-	sleep 1
+	#$AIRSTARTSCRIPT/startCamera.sh $AIRSTARTSCRIPT $LOG &
+	#sleep 1
 	$AIRSTARTSCRIPT/startTXraw.sh $AIRSTARTSCRIPT $LOG $DATAFOLDER &
 	
 	cp /var/log/messages $LOGFOLDER/messages

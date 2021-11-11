@@ -80,6 +80,13 @@ float getCpuTemp(void){
 	return systemp;	
 }
 
+bool checkExists(std::string file){
+    std::ifstream file_to_check (file.c_str());
+    if(file_to_check.is_open()){
+		return true;
+	}
+    return false;
+}
 
 int main(int argc, char *argv[]) {
 //    setpriority(PRIO_PROCESS, 0, -10);
@@ -181,8 +188,7 @@ int main(int argc, char *argv[]) {
 		 maxFileSize=DEFAULT_MAX_VIDEO_FILE_SIZE;
 	 }
 
-//	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking	
-	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_STREAM, O_NONBLOCK); // TCP None blocking	
+	Connection videoToBaseConnection(targetIp,udpVideoPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking	
 	Connection serialToBaseConnection(targetIp,udpSerialPort, SOCK_DGRAM, O_NONBLOCK); // UDP None blocking
 	
 	// For UDP Sockets
@@ -214,8 +220,6 @@ int main(int argc, char *argv[]) {
 	uint16_t inputBufferSize =0;	
 	
 	// STDIN video pipe
-	char videoData[MAXLINE];
-	bzero(&videoData, sizeof(videoData));
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK); // Det STDIN to nonblocking.
 	uint32_t videoRecordFileSize = 0; // Don't record more than 2*1024*1024*1024 bytes = 
 	char videoBuffer[MAX_VIDEO_BUFFER_SIZE]; // Only write to file when 1M has been inputted.
@@ -223,16 +227,23 @@ int main(int argc, char *argv[]) {
 	
 	// Record file:
 	uint8_t fileNumber = 0;
-	char filename[14];
-	sprintf(filename,"%s%d.h264",outputFile,fileNumber);
+	char filename[30];
+	bool newFile=false;
+	do{
+		fileNumber++;
+		sprintf(filename,"%s%d.h264",outputFile,fileNumber);
+		fprintf(stderr, "tx_raw: using video output file (%s).\n",filename);
+	}while(checkExists(filename));
+		
 	std::ofstream* videoRecordFile = new std::ofstream(filename,std::ofstream::binary);
 	bool armed=false; // Only recored when armed!.
 
 	// TX video:
-	RingBuf<videoFrame_t, VIDEO_TX_BUFFER_SIZE> videoBufferTx;// 2MB TX buffer
-	videoFrame_t videoTxBuffer;
-	videoFrame_t bufdata;
-	int videoTxRetry=0;
+	uint8_t videoStreamFromCamera[MAXLINE];
+	uint8_t videoPackagesForTX[MAXLINE];
+	bzero(&videoStreamFromCamera, sizeof(videoStreamFromCamera));
+	bzero(&videoPackagesForTX, sizeof(videoPackagesForTX));
+	static H264TXFraming TXpackageManager; // Needs to be static so it is not allocated on the stack, because it uses 8MB.
 
 	// For select usages.
 	fd_set read_set;
@@ -267,27 +278,51 @@ int main(int argc, char *argv[]) {
 		FD_SET(STDIN_FILENO, &read_set);
 		serialToBaseConnection.setFD_SET(&read_set);
 
-		// Set timeout (Retry to re-transmit or idle)
-		if(videoTxRetry > 0){ // we have video to re-transmit, thus short timeout
-			timeout.tv_sec = 0;
-			timeout.tv_usec = 1000; // 1ms	
-		}else{
-			timeout.tv_sec = 0;
-			timeout.tv_usec = 10000; // 10ms
-		}
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 1000; // 1ms	
+		
 	    nready = select(maxfdp1+1, &read_set, NULL, NULL, &timeout);  // blocking
 
 		
 		if (FD_ISSET(Serialfd, &read_set)) { // Data from serial port.
 //			printf("Data from Serial port!\n\r");
 			int result=0;
+			int err;
+			
 			result = read(Serialfd, rxBuffer, sizeof(rxBuffer));  // read up to 100 characters if ready to read	
-		
+			err = errno; // save off errno, because because the printf statement might reset it
+			
 			//printf("Read result:%d\n\r", n);
-			if (result < 0 || result > MAX_SERIAL_BUFFER_SIZE) {
-				fprintf(stderr, "tx_raw: Error! on reading STD_IN (pipe input)... Terminate program.\n");
-				exit(1);
-			}else  if(result == 0){
+			if (result < 0 || result > sizeof(rxBuffer)) {
+				if ((err == EAGAIN) || (err == EWOULDBLOCK))
+				{
+					fprintf(stderr, "tx_raw: None blocking  - nothing to read?.\n"); // ?
+				}else{
+					 if(err == EBADF){
+						 fprintf(stderr, "tx_raw: The argument sockfd is an invalid file descriptor.\n\r");	 
+					 }else if(err == ECONNREFUSED){
+						 fprintf(stderr, "tx_raw: A remote host refused to allow the network connection.\n\r");
+					 }else if(err == EFAULT){
+						 fprintf(stderr, "tx_raw: The receive buffer pointer(s) point outside the process's address space.\n\r");
+					 }else if(err == EINTR){
+						 fprintf(stderr, "tx_raw: The receive was interrupted by delivery of a signal before any data was available.\n\r");
+					 }else if(err == EINVAL){
+						 fprintf(stderr, "tx_raw: Invalid argument passed.\n\r");
+					 }else if(err == ENOMEM){
+						 fprintf(stderr, "tx_raw: Could not allocate memory for recvmsg().\n\r");
+					 }else if(err == ENOTCONN){
+						 fprintf(stderr, "tx_raw: The socket is associated with a connection-oriented protocol and has not been connected.\n\r");
+					 }else if(err == ENOTSOCK){
+						 fprintf(stderr, "tx_raw: The file descriptor sockfd does not refer to a socket.\n\r");
+					 }else if(err == -1){
+						 fprintf(stderr, "tx_raw: Socket invalid, thus closing file descriptor.\n\r");
+					 }else{
+						 fprintf(stderr, "tx_raw: Unknown error - reading with result=%d and errno=%d, thus closing\n",result,err);
+					 }	 			
+				}
+				fprintf(stderr,"tx_raw: failed in file %s at line # %d - ", __FILE__,__LINE__);
+				exit(EXIT_FAILURE);
+			}else if(result == 0){
 				// None blocking, nothing to read.
 			}else {
 				uint16_t index=0;
@@ -308,7 +343,7 @@ int main(int argc, char *argv[]) {
 							printf("tx_raw: serialRxFIFO (Mavlink msg) size:%d is full!\n",fifoSize);
 						}
 						
-						if(msg.msgid == 30 || totalSize > 512){ // time to send UDP frame if MSG 30 (HUD) or 512 bytes has been reached!
+						if(msg.msgid == 30 || totalSize > 1400){ // time to send UDP frame if MSG 30 (HUD) or 1400 bytes has been reached!
 							uint8_t fifoSize = serialRxFIFO.size();
 							//	printf("\n\r \n\r \n\rTime to transmit! - mavlink FIFO has %d elements with total size of %d\n\r", fifoSize, totalSize);
 							mavlink_message_t data;
@@ -352,18 +387,18 @@ int main(int argc, char *argv[]) {
 //			printf("Data from Ground (Mavlink)!\n\r");
 			int result = 0;
 			result = serialToBaseConnection.readData(inputBuffer, MAX_SERIAL_BUFFER_SIZE);
-			if (result < 0 || result > MAX_SERIAL_BUFFER_SIZE) {
-				fprintf(stderr, "tx_raw: Error! on reading STD_IN (pipe input)... Terminate program.\n");
-				exit(1);
+			if (result < 0 || result > MAX_SERIAL_BUFFER_SIZE){
+				fprintf(stderr,"tx_raw: failed in file %s at line # %d - read UDP serial data (UDP from ground) to Flight Computer... Terminate program.\n", __FILE__,__LINE__);
+				exit(EXIT_FAILURE);
 			}else  if(result == 0){
 				// None blocking, nothing to read.
-			}else {
+			}else{
 				// printf("Data from ground!\n\r");
 				int res = 0;
 				res = write(Serialfd, inputBuffer, result);	
 				if (res < 0 || res > MAXLINE) {
 					fprintf(stderr, "tx_raw: Error! sending serial to flight controller (UDP from ground)... Terminate program.\n");
-					exit(1);
+					exit(EXIT_FAILURE);
 				}
 				linkstatus.mavlinkrx += res;
 			}		
@@ -375,19 +410,53 @@ int main(int argc, char *argv[]) {
 		if (FD_ISSET(STDIN_FILENO, &read_set)) { // Data from from STDIN (Video pipe)
 //			printf("Data from STDIN!\n\r");
 			int result = 0;
-			result = read(STDIN_FILENO, videoData, MAXLINE);	
+			int err;
+			result = read(STDIN_FILENO, videoStreamFromCamera, MAXLINE);	
+			err = errno; // save off errno, because because the printf statement might reset it
 
 			if (result < 0 || result > MAXLINE) {
-				fprintf(stderr, "tx_raw: Error! on reading STD_IN (pipe input)... Terminate program.\n");
-				exit(1);
+				if ((err == EAGAIN) || (err == EWOULDBLOCK)){
+					fprintf(stderr, "tx_raw: None blocking  - nothing to read?.\n"); // ?
+				}else{
+					 if(err == EBADF){
+						 fprintf(stderr, "tx_raw: The argument sockfd is an invalid file descriptor.\n\r");	 
+					 }else if(err == ECONNREFUSED){
+						 fprintf(stderr, "tx_raw: A remote host refused to allow the network connection.\n\r");
+					 }else if(err == EFAULT){
+						 fprintf(stderr, "tx_raw: The receive buffer pointer(s) point outside the process's address space.\n\r");
+					 }else if(err == EINTR){
+						 fprintf(stderr, "tx_raw: The receive was interrupted by delivery of a signal before any data was available.\n\r");
+					 }else if(err == EINVAL){
+						 fprintf(stderr, "tx_raw: Invalid argument passed.\n\r");
+					 }else if(err == ENOMEM){
+						 fprintf(stderr, "tx_raw: Could not allocate memory for recvmsg().\n\r");
+					 }else if(err == ENOTCONN){
+						 fprintf(stderr, "tx_raw: The socket is associated with a connection-oriented protocol and has not been connected.\n\r");
+					 }else if(err == ENOTSOCK){
+						 fprintf(stderr, "tx_raw: The file descriptor sockfd does not refer to a socket.\n\r");
+					 }else if(err == -1){
+						 fprintf(stderr, "tx_raw: Socket invalid, thus closing file descriptor.\n\r");
+					 }else{
+						 fprintf(stderr, "tx_raw: Unknown error - reading with result=%d, thus closing\n",result);
+					 }	 			
+				}
+				fprintf(stderr,"tx_raw: failed in file %s at line # %d - Error on reading STD_IN (pipe input)... Terminate program.\n", __FILE__,__LINE__);
+				exit(EXIT_FAILURE);				
 			}else  if(result == 0){
 				// EOF
 				//fprintf(stderr, "tx_raw: Warning! Lost connection to stdin. Please make sure that a data source is connected\n");
 			}else {	
 				//printf("Writing %d bytes to Videobuffer\n\r", result);
 				// write to outfile
-				memcpy(&videoBuffer[videoBufferSize], videoData, result); // copy input to buffer for disk write.
+				uint16_t length = ((uint16_t)result);
+				
+				//input data to h264 class (TX):
+				TXpackageManager.inputStream(videoStreamFromCamera, length);		
+//				fprintf(stderr, "tx_raw: Number of Bytes added to inputstream(%u), FIFO has(%u) number of packages ready for TX\n", length,TXpackageManager.getTXFifoSize());
+				
+				memcpy(&videoBuffer[videoBufferSize], videoStreamFromCamera, result); // copy input to buffer for disk write.
 
+/*
 				if(!videoBufferTx.isFull()){
 					memcpy(&videoTxBuffer.data, videoData, result); // copy input to buffer for TX write.
 					videoTxBuffer.len=result;
@@ -397,17 +466,16 @@ int main(int argc, char *argv[]) {
 					videoBufferTx.clear();
 					linkstatus.videodropped += VIDEO_TX_BUFFER_SIZE;					
 				}
-				
+	*/			
 				videoBufferSize += result;
 				//printf("adding %d bytes to Videofile\n\r", videoBufferSize);				
 			
 				if(videoBufferSize > VIDEO_BUFFER_WRITE_THRESHOLD){ // Time to write video buffer to file
 	//				printf("Writing %d bytes to Videofile\n\r", videoBufferSize);	
-//					if(true==armed){
-//					if(false){
+					if(true==armed){ // only record when armed.
 						videoRecordFile->write(videoBuffer,videoBufferSize);
 						videoRecordFileSize += videoBufferSize;				
-//					}
+					}
 					videoBufferSize=0;
 
 					if(videoRecordFileSize > maxFileSize){ // time to change file
@@ -444,47 +512,53 @@ int main(int argc, char *argv[]) {
 			}
 		}else{
 			// No serial data is pending, lets try and send some video frame if needed:
-			bool SendVideo = false;
-			
-			if(videoTxRetry > 0){ // retry to send the frame in bufdata:
-				SendVideo = true;
-			}else if(!(videoBufferTx.isEmpty())){ // Make new data ready for TX
-				videoBufferTx.pop(bufdata);
-				SendVideo = true;
-			}
 
-			if(true == SendVideo){
-				int result=0;
+			
+			
+			
+			// Get TX packages from h264 (TX):
+			bool SendVideo=true;
+			uint8_t *data;
+			uint16_t size=0;TXpackageManager.getTXPackage(data);	
+			int result = 0;			
+			//fprintf(stderr, "tx_raw: Number of Packages ready in TX FIFO(%u)\n",size);
+			
+			do{				
+				size = TXpackageManager.getTXPackage(data);						
 				
-//				fprintf(stderr, "tx_raw: Header: %d\n",bufdata.header );
-//				fprintf(stderr, "tx_raw: Length %d\n",bufdata.len );
-				result = videoToBaseConnection.writeData(bufdata.data, bufdata.len);
-				
-				if(result < 0){ // Error
-					fprintf(stderr, "tx_raw: Error! on video socket write.. Terminate program.\n");
-					exit(1);
-				}else if(result == 0){ // dropping frame
-					if(videoTxRetry < VIDEO_RETRY_ATTEMPTS){
-						videoTxRetry++;
-					}else{ // drop frame and reset retry counter:
-						//printf("Unable to send video\n\r", videoBufferTx.size());
-						linkstatus.videodropped += bufdata.len;
-						videoTxRetry=0;
+				if(size>0){
+					//bzero(&videoPackagesForTX, sizeof(videoPackagesForTX));
+					
+
+					//uint16_t frameID = (uint16_t)((uint16_t)data[0] +  (uint16_t)(data[1] << 8));	
+					//uint16_t packageID = (uint16_t)((uint16_t)data[2] +  (uint16_t)(data[3] << 8));
+					//fprintf(stderr, "tx_raw: Transmitting Package with FrameID(%u) and PackageID(%u) with size(%u)...",frameID, packageID, size);
+					result = videoToBaseConnection.writeData(data, size);
+					
+					if(result == size){
+						//fprintf(stderr, "Ok!\n");
+						TXpackageManager.nextTXPackage();	
+					}else{
+						fprintf(stderr, "Error! result(%u) != size(%u)\n", result, size);
+						SendVideo=false;
+						if(result > 0){ // not all was transmitted, this is not good for UDP
+							fprintf(stderr, "tx_raw: Error! on video tx. Bytes to be sent(%u) is lower than bytes transmitted(%u).\n",size, result);
+						}
 					}
 				}else{
-					videoTxRetry=0; // completed sending frame.
-					linkstatus.videotx += result; // counting b.
-					if( !(videoBufferTx.isEmpty()) ){
-					//	printf("tx_raw: After successfully transmitting one video frame, there is still %d frames left in buffer.\n\r", videoBufferTx.size());
-					}
+					SendVideo=false;
 				}
-			}
+			}while(SendVideo);
 		}
+		
 		
 		//Only run on timeout
 		if(nready == 0){	
 			// check if it is time to log the status:
 			if(time(NULL) >= nextPrintTime){		
+				linkstatus.videodropped=TXpackageManager.getBytesDropped();
+				linkstatus.videotx=TXpackageManager.getBytesOutputted();
+				TXpackageManager.clearIOstatus();
 				printf("%d tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fMB ", time(NULL), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 6 ,linkstatus.videodropped/(1024*1024));
 //				printf("%llu tx_raw: Status:            Mavlink: (tx|rx|dropped):  %*.2fKB  |  %*.0fB  | %*.2fKB            Video: (tx|dropped)  %*.2fMB  | %*.2fKB ", timeMillisec(), 6, linkstatus.mavlinktx/1024 , 6, linkstatus.mavlinkrx , 6 , linkstatus.mavlinkdropped/1024, 6, linkstatus.videotx/(1024*1024), 8 ,linkstatus.videodropped/1024);
 				if(true==armed){			
@@ -525,7 +599,6 @@ int main(int argc, char *argv[]) {
 	}while(1);
 
 	fprintf(stderr, "tx_raw: Panic!!!\n\n");
-	exit(1);
-
+	exit(EXIT_FAILURE);	
 }
 

@@ -133,9 +133,11 @@ int main(int argc, char *argv[])
 	}
 		
 	// For UDP/TCP Sockets
-	Connection inputVideoConnectionListener(videoPort, SOCK_STREAM); // TCP listen.
-	Connection inputVideoConnection; // TCP port keep empty until TCP listen has been connected.
-	//Connection inputVideoConnection(videoPort, SOCK_STREAM);
+	//Connection inputVideoConnectionListener(videoPort, SOCK_STREAM); // TCP listen.
+	//Connection inputVideoConnection; // TCP port keep empty until TCP listen has been connected.
+	
+	//Connection inputVideoConnection(videoPort, SOCK_DGRAM);
+	Connection inputVideoConnection(videoPort, SOCK_DGRAM,O_NONBLOCK);
 	Connection outputVideoConnection("127.0.0.1", OUTPUT_VIDEO_PORT, SOCK_DGRAM); 
 
 	// For UDP/TCP Sockets
@@ -149,6 +151,13 @@ int main(int argc, char *argv[])
 	// For UDP/TCP Sockets Video record  mavlink forward
 	Connection extraRelayMavlinkConnection("192.168.0.8",6000, SOCK_DGRAM); // UDP port
 				
+	static H264RXFraming RXpackageManager; // Needs to be static so it is not allocated on the stack, because it uses 8MB.
+	uint8_t videoPackagesFromRX[RX_BUFFER_SIZE];
+	uint8_t videoOutputStream[RX_BUFFER_SIZE];
+	bzero(&videoPackagesFromRX, sizeof(videoPackagesFromRX));
+	bzero(&videoOutputStream, sizeof(videoOutputStream));
+	uint16_t lastPackage=0;
+	
 	uint8_t rxBuffer[RX_BUFFER_SIZE];
 	int nready, maxfdp1; 
 	fd_set rset; 
@@ -213,7 +222,7 @@ int main(int argc, char *argv[])
 		inputMavlinkConnection.setFD_SET(&rset);
 		outputMavlinkConnection.setFD_SET(&rset);
 		
-		inputVideoConnectionListener.setFD_SET(&rset); // For TCP
+		//inputVideoConnectionListener.setFD_SET(&rset); // For TCP
 		if(inputVideoConnection.getFD() != 0){ // only include id connection is valid
 			inputVideoConnection.setFD_SET(&rset);			
 		}
@@ -232,7 +241,7 @@ int main(int argc, char *argv[])
 		}
 		maxfdp1 = max(maxfdp1, outputMavlinkConnection.getFD());
 		
-		maxfdp1 = max(maxfdp1, inputVideoConnectionListener.getFD());		
+		//maxfdp1 = max(maxfdp1, inputVideoConnectionListener.getFD());		
 		if(inputVideoConnection.getFD() != 0){ // only include id connection is valid
 			maxfdp1 = max(maxfdp1, inputVideoConnection.getFD());
 		}
@@ -248,33 +257,75 @@ int main(int argc, char *argv[])
 		nready = select(maxfdp1+1, &rset, NULL, NULL, &timeout); // since we are blocking, wait here for data.//
 		
 		// Listen for TCP connection for video TCP
+		/*
 		if (FD_ISSET(inputVideoConnectionListener.getFD(), &rset)) { 
 				fprintf(stderr, "RX: Incomming TCP connection. \n");
 				inputVideoConnection.startConnection(inputVideoConnectionListener.getFD());
 		}
+		*/
 		
 		// Video DATA from Drone		
 		if (FD_ISSET(inputVideoConnection.getFD(), &rset)) { 
-			
-			int result = 0;
-			result = inputVideoConnection.readData(rxBuffer, RX_BUFFER_SIZE);
-			
-			//printf("Read result:%d\n\r", n);
-			if (result < 0 || result > RX_BUFFER_SIZE) {
-				// If TCP that means server connection is lost:
-				
-				// Establish connection again!
 
-							
-				// IF UDP
-				// fprintf(stderr, "RX: Error on Input video UDP Socket Port: %d, Terminate program.\n", videoPort);
-				// exit(EXIT_FAILURE);
-			}else  if(result == 0){
-				// None blocking, nothing to read.
-			}else {	
-				write(STDOUT_FILENO, rxBuffer, result);		// also write to STDOUT.	
-				linkstatus.rx += (float)result;
-			}
+			int result = 0;
+			int numberOfPackages=0;
+//			fprintf(stderr, "RX: Start input service... ");
+			do{
+				//result = inputVideoConnection.readData(videoPackagesFromRX, RX_BUFFER_SIZE);
+				uint32_t maxSize = RXpackageManager.getPackageMaxSize();
+				result = inputVideoConnection.readData(RXpackageManager.getInputBuffer(), maxSize);
+	//			fprintf(stderr, "Read result(%d) ", result);
+				if (result < 0 || result > maxSize){
+					// If TCP that means server connection is lost:
+					
+					// Establish connection again!
+								
+					// IF UDP
+					fprintf(stderr, "RX: Error on Input video UDP Socket Port: %d, Terminate program.\n", videoPort);
+					exit(EXIT_FAILURE);
+				}else if(result == 0){
+					// None blocking, nothing to read.
+					// Blocking will never end up here because it will wait in readData... :-(
+				}else{	
+					// 
+					RXpackageManager.setData((uint16_t)result); // handles the 
+					numberOfPackages++;
+					//uint16_t packageID = (uint16_t)((uint16_t)videoPackagesFromRX[2] +  (uint16_t)(videoPackagesFromRX[3] << 8));
+					//if(packageID != (lastPackage + 1) ){
+					//	uint16_t frameID = (uint16_t)((uint16_t)videoPackagesFromRX[0] +  (uint16_t)(videoPackagesFromRX[1] << 8));	
+					//	fprintf(stderr, "rx_raw: RX Frame received with FrameID(%u) and PackageID(%u) and length(%u) - Last Package was(%u)\n",frameID, packageID, result, lastPackage);				
+					//}
+					//lastPackage=packageID;				
+					//RXpackageManager.inputRXPackage(videoPackagesFromRX, (uint16_t)result);					
+				}				
+			}while(result>0);
+				//if(numberOfPackages>40){
+				//	fprintf(stderr, "done reading (%u) Packages\n",numberOfPackages);	
+				//}
+				RXpackageManager.writeAllOutputStreamTo(STDOUT_FILENO);
+				
+				
+				//std::this_thread::sleep_for(std::chrono::milliseconds(100)); // test UDP buffer by sleeping.
+/*				
+				if(false){
+					//fprintf(stderr, "rx_raw: RX Output stream FIFO size(%u)\n", RXpackageManager.);
+					linkstatus.rx += (float)result;
+					
+					// read output stream:
+					uint32_t dataReady=0;				
+					do{
+						dataReady = RXpackageManager.Outputstream(videoOutputStream, sizeof(videoOutputStream));					
+		
+						if(dataReady > 0){
+							//fprintf(stderr, "H264_test: Number of bytes ready for outputstream (%u)\n", dataReady);
+							//fwrite(videoOutputStream, 1, (size_t)dataReady, stdout);
+							write(STDOUT_FILENO, videoOutputStream, dataReady);		// also write to STDOUT.		
+						}
+					}while(dataReady > 0);
+			
+					//write(STDOUT_FILENO, rxBuffer, result);		// also write to STDOUT.		
+				}
+				*/
 		}
 
 		// DATA from QOpenHD (Video return) This should not happend
@@ -382,7 +433,7 @@ int main(int argc, char *argv[])
 					fprintf(stderr, "RX: Error on write to Output Mavlink UDP Socket Port: %d, Terminate program.\n", OUTPUT_MAVLINK_PORT);
 					exit(EXIT_FAILURE);
 				}else if(res == 0){
-					linkstatus.dropped += result;					
+				//	linkstatus.dropped += result;					
 				}else{							
 					linkstatus.tx += result;						
 				}
@@ -392,11 +443,16 @@ int main(int argc, char *argv[])
 
 		// check if it is time to log the status and sent Telemtry frame to QOpenHD:
 		if(time(NULL) >= nextPrintTime){
+			linkstatus.rx = RXpackageManager.getBytesInputted();
+			linkstatus.dropped = RXpackageManager.getBytesDropped();
+			RXpackageManager.clearIOstatus();
+			
 			fprintf(stderr, "RX: Status:       UDP Packages: (tx|rx|dropped):  %*.2fKB  |  %*.2fKB  | %*.2fKB", 6, linkstatus.tx/1024 , 6, linkstatus.rx/1024 , 6 , linkstatus.dropped/1024);
 			nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;
 			
 			// Sendt the Telemtry frame to QOpenHD.
 			telmetryData.kbitrate = (linkstatus.rx*8)/1024; // Video kbit rate.
+
 			telmetryData.HomeLat = 0;
 			telmetryData.HomeLon = 0;
 			int res = 0;
@@ -424,6 +480,43 @@ int main(int argc, char *argv[])
 			inputVideoConnection.writeData(rxBuffer, 6);
 			inputTelemetryConnection.writeData(rxBuffer, 6);
 		}
+		
+		//check if there is data ready for output stream:
+		//if(RXpackageManager.getOutputStreamFIFOSize() > 0){
+//			fprintf(stderr, "RX: Start output stream service...");
+			// read output stream:
+			/*
+			uint32_t dataReady=0;		
+			uint32_t numberOfPackages=0;
+			do{
+				//dataReady = RXpackageManager.getOutputStream(videoOutputStream, sizeof(videoOutputStream));					
+				dataReady = RXpackageManager.writeOutputStreamTo(STDOUT_FILENO);					
+
+				if(dataReady > 0){
+					numberOfPackages++;
+					//fprintf(stderr, "H264_test: Number of bytes ready for outputstream (%u)\n", dataReady);
+					//fwrite(videoOutputStream, 1, (size_t)dataReady, stdout);
+					//write(STDOUT_FILENO, videoOutputStream, dataReady);		// also write to STDOUT.		
+				}
+			}while(dataReady > 0);
+			*//*
+			if(numberOfPackages>10){
+				fprintf(stderr, "done writing (%u) Packages to STDOUT\n",numberOfPackages);	
+			}*/
+				
+//			fprintf(stderr, "done.\n");	
+		//	bool moreData=false;
+			//uint32_t numberOfPackages=0;
+//do{
+			//	numberOfPackages++;
+		//		moreData = RXpackageManager.writeOutputStreamTo(STDOUT_FILENO);
+		//	}while(moreData);	
+			/*
+			if(numberOfPackages>30){
+				fprintf(stderr, "done writing (%u) Packages to STDOUT\n",numberOfPackages);	
+			}*/
+
+		//}
 		
 	}while(1);
 	

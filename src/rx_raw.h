@@ -25,7 +25,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <iostream>
-#include <chrono> // Crone time measure
+#include <chrono> // Crone time measure and sleep debug
+#include <thread> // for sleep debug
 #include "connection.h"
 
 
@@ -36,8 +37,10 @@
 
 //FIFO
 #include "RingBuf.h"
+//#include "h264.h"
+#include "h264RXFraming.h"
 
-#define RX_BUFFER_SIZE 1024
+#define RX_BUFFER_SIZE 1400
 #define LOG_INTERVAL_SEC 1 // log every minute
 
 int max(int x, int y)

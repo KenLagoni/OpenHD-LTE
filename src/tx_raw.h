@@ -39,9 +39,11 @@
 //FIFO
 #include "RingBuf.h"
 #define FIFO_SIZE 256 // Mavlink messages
+//#include "h264.h"
+#include "h264TXFraming.h"
 
 // Serial:
-#define MAXLINE 1024
+#define MAXLINE 1400
 
 #define DEFAULT_MAX_VIDEO_FILE_SIZE 2000000000 // (FAT32 max 2Gb (2147483648)) if not set with -z option.
 #define MAX_VIDEO_BUFFER_SIZE 1024*1024*2 // 2MB
