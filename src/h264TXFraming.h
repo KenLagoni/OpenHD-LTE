@@ -20,6 +20,7 @@ class H264TXFraming : public H264
 	void inputStream(uint8_t *data, uint32_t maxlength); // input data with pointer to array and length of bytes to copy.	
 	uint16_t getTXPackage(uint8_t * &data); // Sets the pointer to the data array and returnt number of bytes in package.
 	void nextTXPackage(void); // Informs H264 that package was transmitted so it can move to next package.
+	void reTransmitHeader(void);
 	
 	//uint16_t getStartHeader(uint8_t *data, uint32_t maxlength); // copy start header to data and returns number of bytes copied.
 	// getStatus...
@@ -49,7 +50,8 @@ class H264TXFraming : public H264
 	// private functions to manage the Inputbuffer array:
 	void addData(uint8_t data);
 	void startNewPackage(bool keyframe);		
-	void trimOutputFIFO(void);			
+	void trimOutputFIFO(void);	
+	bool headerRequested = false;
 };
 
 #endif /* H264TXFRAMING_H_ */

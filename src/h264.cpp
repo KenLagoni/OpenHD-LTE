@@ -7,7 +7,12 @@
 
 H264::H264(){
 	// clear all memmory:
-	bzero(&this->InputBuffer, sizeof(this->InputBuffer));
+	
+	for(int a=0;a<INPUT_BUFFER_SIZE;a++){
+		this->InputBuffer[a].clear();
+	}
+	
+
 	this->currentBuffer=&this->InputBuffer[0]; // start with index 0
 }
 
@@ -15,39 +20,31 @@ H264::H264(){
 bool H264::setNextAvailableBuffer(void){
 	
 	// search for next empty buffer:
-	for(uint32_t count=bufferIndex;count<INPUT_BUFFER_SIZE;count++){
+	for(uint32_t count=this->bufferIndex; count<INPUT_BUFFER_SIZE; count++){
+//		fprintf(stderr, "H264: 1-New buffer: count(%u) bufferIndex(%u) SizeOfInputbuffer(%u)...", count,this->bufferIndex,INPUT_BUFFER_SIZE);	
 		if(this->InputBuffer[count].isFree()){
-			bufferIndex=count;
+			this->bufferIndex=count;
 			this->currentBuffer=&this->InputBuffer[count];
+//			fprintf(stderr, "found free!\n");	
 			return false;
 		}
 	}
 	
 	// if we come to here, then try searching from 0 to bufferIndex.:
-	for(uint32_t count=0;count<bufferIndex;count++){
+	for(uint32_t count=0; count<this->bufferIndex; count++){
 		if(this->InputBuffer[count].isFree()){
-			bufferIndex=count;
+			this->bufferIndex=count;
 			this->currentBuffer=&this->InputBuffer[count];
+//			fprintf(stderr, "H264: 2-New buffer index(%u) count(%u)\n",this->currentBuffer->getIndex(), count);	
 			return false;
 		}
 	}
-	
+	fprintf(stderr, "H264: Input buffer full - bufferindex(%u)\n", this->bufferIndex);
 	return true;
 }
 
-/*
-uint16_t H264::getFrameID(void){
-	return this->frameID;
-}
-
-
-uint16_t H264::getPackageID(void){
-	return this->packageID;
-}
-*/
-
 uint16_t H264::getNextFrameID(void){
-	uint16_t next=this->FrameID;
+	uint32_t next=this->FrameID;
 	next++;
 	if(next>=MAX_FRAMEID){ // should be 16 bit to the max, (65535).
 		next=1; // Frame start at 1.
@@ -56,7 +53,7 @@ uint16_t H264::getNextFrameID(void){
 }
  
 uint16_t H264::getNextPackagedID(void){
-	uint16_t next=this->PackageID;
+	uint32_t next=this->PackageID;
 	next++;
 	if(next>=MAX_PACKAGEID){ // should be 16 bit to the max, (65535).
 		next=0;
@@ -75,6 +72,12 @@ void H264::addBytesOutputted(uint32_t bytes){
 void H264::addBytesDropped(uint32_t bytes){
 	this->bytesDropped+=bytes;
 }
+
+uint32_t H264::getBufferSize(void){
+	return this->outputPackages.size();
+}
+
+
 
 void H264::clearIOstatus(void){
 	 this->bytesInputted=0;

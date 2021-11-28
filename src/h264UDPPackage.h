@@ -14,8 +14,8 @@
 #include <cstring> // memcpy
 
 #define UDP_PACKET_SIZE 1400 // MAX MTU size for ethernet is ~1456, so keep below this for none framing.
-#define UDP_HEADER 4
-#define UDP_DATA_SIZE UDP_PACKET_SIZE-UDP_HEADER
+#define UDP_HEADER_SIZE 4
+#define UDP_DATA_SIZE UDP_PACKET_SIZE-UDP_HEADER_SIZE
 
 class H264UDPPackage
 {
@@ -29,18 +29,22 @@ class H264UDPPackage
 	bool isFull(void); // return true if Full. Else false.
 	bool isNewFrame(void); // return true if this is the start of a key- or I-frameFull. Else false.
 	bool isNewKeyFrame(void); // return true if this is the start of a keyframeFull. Else false.
+	bool isHeaderFrame(void); // returns true if this packages is the header.
 
 	bool setData(void *input, uint16_t length); // return true if ok.
 	bool setData(uint16_t size); // this is used if data is inputted directly via getPayload pointer. )for faster performance.
-	bool addData(uint8_t data); // return true when full.
+	bool addData(uint8_t input); // return true when full.
 	
+	//debud
+	uint16_t getIndex(void);
+
 	// Used for RX:
 	uint8_t * getPayload(void); // returns a pointer to the payload. (for read or write)
-	uint16_t getPayloadSize(void); // returns the size of the data.
+	uint16_t getPayloadSize(void); // returns the size of the Payload. Thus how many bytes to read when using getPayload.
 		
 	// Used for TX:
 	uint8_t * getPackage(void); // returns a pointer to the complete data array includein.
-	uint16_t getPackageSize(void); // returns the size of the data.
+	uint16_t getPackageSize(void); // returns the size of the package (HEADER+DATA), thus the size of the array from getPackage
 	
 	uint16_t getPackageMaxSize(void); // returns the maxsize for the package.
 	

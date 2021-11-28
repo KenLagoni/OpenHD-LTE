@@ -27,14 +27,17 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 		switch(this->state)
 		{
 			case LOOK_FOR_HEADER_00:
+			{
 				if(data[index] == 0x00){
 					this->state=LOOK_FOR_HEADER_00_2;
 				}else if(this->savingStream == true){ // We are running, save the data.								
 					this->addData(data[index]);
 				}
+			}
 			break;			
 			
 			case LOOK_FOR_HEADER_00_2:
+			{
 				if(data[index] == 0x00){
 					this->state=LOOK_FOR_HEADER_00_3;
 				}else{
@@ -45,9 +48,11 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 						this->addData(data[index]);
 					}
 				}
+			}
 			break;			
 			
 			case LOOK_FOR_HEADER_00_3:
+			{
 				if(data[index] == 0x00){
 					this->state=LOOK_FOR_HEADER_01;
 				}else{
@@ -59,9 +64,11 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 						this->addData(data[index]);
 					}
 				}
+			}
 			break;		
 
 			case LOOK_FOR_HEADER_01:
+			{
 				if(data[index] == 0x01){
 					this->state=ANALYSE_HEADER;
 				}else{
@@ -74,9 +81,11 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 						this->addData(data[index]);
 					}
 				}
+			}
 			break;					
 			
 			case ANALYSE_HEADER: 
+			{				
 				// start with I frame since this is the most occuring header:
 				if(data[index] == 0x21){ // I frame:
 //					fprintf(stderr, "H264_TX: I-Frame Header found.\n");
@@ -89,6 +98,15 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 					this->state=LOOK_FOR_HEADER_00;					
 				}else if(data[index] == 0x25){ // Keyframe
 			//		fprintf(stderr, "H264_TX: Keyframe found in input stream, placed at (%u).\n", this->FifoState.InputPackageID);
+					if(true==this->headerRequested){
+						this->headerRequested=false;
+						this->startNewPackage(true); // split on keyframe.
+						for(int a=0;a<29; a++){
+							fprintf(stderr, "%02x ", this->startHeader.data[a]);	
+							this->addData(this->startHeader.data[a]);
+						}
+					}
+			
 					this->startNewPackage(true); // split on keyframe.
 					this->savingStream=true;
 					this->addData(0x00);
@@ -127,6 +145,7 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 					this->state=LOOK_FOR_HEADER_00;
 					fprintf(stderr, "H264_TX: Error - header (%u) not reconized in inputstream\n",data[index]);
 				}
+			}
 			break;
 			
 			case GET_SPS_HEADER: 
@@ -141,8 +160,7 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 			}
 			break;
 			
-			
-			
+
 			case GET_PPS_HEADER: 
 			{
 				this->startHeader.data[this->startHeader.counter] = data[index]; // Save header.
@@ -161,7 +179,9 @@ void H264TXFraming::inputStream(uint8_t *data, uint32_t length){
 			break;
 				
 			default:
+			{
 				fprintf(stderr, "H264_TX: Error - state (%u) unkown in input stream statemachine\n",this->state);
+			}
 			break;	
 		}
 	}
@@ -175,11 +195,19 @@ void H264TXFraming::addData(uint8_t data){
 	if(this->currentBuffer->addData(data)){ // buffer is now full
 		this->startNewPackage(false);
 	}
+
+	
 }
 
 void H264TXFraming::startNewPackage(bool keyframe){
 //	fprintf(stderr, "H264_TX: Start new package...");
 	
+	// if the current pacakge is empty, then dont make new package. this could be, if the last pacakge wass full (thus new) and the very next bytes are header to split on.
+	// this will generate a zero package.
+	if(this->currentBuffer->getPayloadSize() == 0){ // this is a zero data?
+		return;
+	}
+
 	this->PackageID=getNextPackagedID();
 
 	if(keyframe){
@@ -191,16 +219,17 @@ void H264TXFraming::startNewPackage(bool keyframe){
 	this->currentBuffer->setFrameID(this->FrameID);
 	this->currentBuffer->setPackageID(this->PackageID);
 
-/*	
-	fprintf(stderr, "H264_TX: TX Package complete - FrameID(%u) PackageID(%u) and size (%u) - is Keyframe(%u) : ",this->currentBuffer->getFrameID(),this->currentBuffer->getPackageID(),this->currentBuffer->getSize(),this->currentBuffer->isNewKeyFrame() );	
-	
-	uint8_t *p = this->currentBuffer->getData();
-	for(int a=0;a<10;a++){
-		fprintf(stderr, " %02x", p[a+4]);
+/*
+	if(this->currentBuffer->getPayloadSize() == 0){ // this is a zero data?
+		fprintf(stderr, "H264_TX: Error! - Zero package ? - TX Package complete - FrameID(%u) PackageID(%u) and Payload size (%u) - is Keyframe(%u) : ",this->currentBuffer->getFrameID(),this->currentBuffer->getPackageID(),this->currentBuffer->getPayloadSize(),this->currentBuffer->isNewKeyFrame() );	
+		
+		uint8_t *p = this->currentBuffer->getPackage();
+		for(int a=0;a<10;a++){
+			fprintf(stderr, " %02x", p[a]);
+		}
+		fprintf(stderr, "\n");
 	}
-	fprintf(stderr, "\n");
-	
-	*/
+*/	
 	
 	this->outputPackages.push(this->currentBuffer); // add current buffer pointer to FIFO.
 //	fprintf(stderr, "Package saved with FrameID(%u) PacakgeID(%u). outputPackages size(%u) - local FrameID(%u) and PackageID(%u)\n",this->currentBuffer->getFrameID(), this->currentBuffer->getPackageID(), this->outputPackages.size(),  this->FrameID, this->PackageID);
@@ -244,7 +273,7 @@ uint16_t H264TXFraming::getTXPackage(uint8_t * &data){
 	}
 	
 	uint16_t size = this->outputPackages.front()->getPackageSize();
-	
+//	fprintf(stderr, "H264_TX: Output Package size (%u)\n", size);
 	if(size == 0 ){
 		return 0;
 	}
@@ -262,4 +291,8 @@ void H264TXFraming::nextTXPackage(void){
 
 //		fprintf(stderr, "After Size(%u)\n", this->outputPackages.size());
 	}
+}
+
+void H264TXFraming::reTransmitHeader(void){
+	this->headerRequested = true;
 }

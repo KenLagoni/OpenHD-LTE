@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -27,18 +28,18 @@
 #include <iostream>
 #include <chrono> // Crone time measure and sleep debug
 #include <thread> // for sleep debug
-#include "connection.h"
-
-
 #include <sys/mman.h>
 
-//Video record to file
-#include <fstream>
-
-//FIFO
-#include "RingBuf.h"
-//#include "h264.h"
+#include "connection.h"
+#include "telemetryWrapper.h"
 #include "h264RXFraming.h"
+#include "timer.h"
+// For H264 recording
+#include "h264Recorder.h"
+
+// For Mavlink
+#include "mavlinkHandler.h"
+
 
 #define RX_BUFFER_SIZE 1400
 #define LOG_INTERVAL_SEC 1 // log every minute
@@ -51,62 +52,11 @@ int max(int x, int y)
 	return y;
 }
 
-/*
-#define SPS_HEADER_SIZE 15
-#define SPS_HEADER_CODE 0x27
-#define PPS_HEADER_SIZE 4
-#define PPS_HEADER_CODE 0x28
-
-typedef struct { // 27, 28, 25 (keyframe) 21 (I-frame)
-	uint8_t SPSHeader[SPS_HEADER_SIZE];
-	bool SPSHeaderFound;
-	uint8_t PPSHeader[PPS_HEADER_SIZE];
-	bool PPSHeaderFound;
-	uint32_t bytesRecorded;
-	bool fileCreated;
-} videoStream_t;
-*/
-
 typedef struct {
 	float tx;
 	float rx;
 	float dropped;
 } rx_dataRates_t;
-
-typedef struct {
-    uint32_t received_packet_cnt;
-    int8_t current_signal_dbm;
-    int8_t type; // 0 = Atheros, 1 = Ralink
-    int8_t signal_good;
-} __attribute__((packed)) wifi_adapter_rx_status_forward_t;
-
-
-typedef struct {
-    uint32_t damaged_block_cnt;              // number bad blocks video downstream
-    uint32_t lost_packet_cnt;                // lost packets video downstream
-    uint32_t skipped_packet_cnt;             // skipped packets video downstream (shownen under video icon as second number)
-    uint32_t injection_fail_cnt;             // Video injection failed downstream (shownen under video icon as first number)
-    uint32_t received_packet_cnt;            // packets received video downstream
-    uint32_t kbitrate;                       // live video kilobitrate per second video downstream (Video rate icon).
-    uint32_t kbitrate_measured;              // shown as "Measured" when clicked on video icon)
-    uint32_t kbitrate_set;                   // shown as "Set" when clicked on video icon
-    uint32_t lost_packet_cnt_telemetry_up;
-    uint32_t lost_packet_cnt_telemetry_down;
-    uint32_t lost_packet_cnt_msp_up;         // not used at the moment
-    uint32_t lost_packet_cnt_msp_down;       // not used at the moment
-    uint32_t lost_packet_cnt_rc;
-    int8_t current_signal_joystick_uplink;   // signal strength in dbm at air pi (telemetry upstream and rc link)
-    int8_t current_signal_telemetry_uplink;
-    int8_t joystick_connected;               // 0 = no joystick connected, 1 = joystick connected
-    float HomeLat;
-    float HomeLon;
-    uint8_t cpuload_gnd;
-    uint8_t temp_gnd;
-    uint8_t cpuload_air;
-    uint8_t temp_air;
-    uint32_t wifi_adapter_cnt;
-	wifi_adapter_rx_status_forward_t adapter[6];
-} __attribute__((packed)) rx_status_t;
 
 
 #endif /* RX_RAW_H_ */

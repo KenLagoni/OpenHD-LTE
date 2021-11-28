@@ -19,6 +19,8 @@
 #define MAX_PACKAGEID 65535
 #define MAX_FRAMEID 65535
 #define INPUT_BUFFER_SIZE 16384 // total RAM size = UDP_PACKET_LENGTH * FRAME_BUFFER_SIZE = 1024 * 8192 = 8MB
+//#define INPUT_BUFFER_SIZE 1200 // total RAM size = UDP_PACKET_LENGTH * FRAME_BUFFER_SIZE = 1024 * 8192 = 8MB
+
 
 class H264
 {
@@ -30,7 +32,7 @@ class H264
 	uint32_t getBytesInputted(void);
 	uint32_t getBytesOutputted(void);
 	uint32_t getBytesDropped(void);
-
+	uint32_t getBufferSize(void);
 
 	// Parameters used by the classes using this
 	protected:
@@ -48,11 +50,11 @@ class H264
 	void addBytesOutputted(uint32_t bytes);
 	void addBytesDropped(uint32_t bytes);
 
-	
+	H264UDPPackage InputBuffer[INPUT_BUFFER_SIZE]; // for debug
 	// Parameters only used on mother class.
 	private:
 
-	H264UDPPackage InputBuffer[INPUT_BUFFER_SIZE];
+	//H264UDPPackage InputBuffer[INPUT_BUFFER_SIZE];
 	uint32_t bufferIndex=0;
 	
 	uint32_t bytesInputted=0;
