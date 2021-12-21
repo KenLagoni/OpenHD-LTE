@@ -6,6 +6,9 @@ This is based on my project [MavlinkGPRS](https://github.com/KenLagoni/MavlinkGP
 The hardware is build from standard components and put together with som 3d-printing to give the camera a "Run-Cam" look.
 ![Air-side setup1](images/air-camera.png)
 
+## Video Demo from testing:
+[![Video Demo]({images/Maiden_with_live_HD_Video_using_4G_LTE.png})]({https://www.youtube.com/watch?v=WuZNlrIi2fo} "AR Wing Pro - Maiden with live HD Video using 4G LTE")
+
 # Features:
 - Record video up to 1920p30 / 720p60.
 - Stream video to groundstation via 4G LTE network. (Lagenchy ~0.7s).
