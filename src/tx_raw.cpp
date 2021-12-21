@@ -104,6 +104,20 @@ int readData(int fd, void *input, int size){
 	return result;
 }
 
+// Global used function to write STDIN or serial and only returns number of bytes to handle. On error exit here with error message.
+int writeData(int fd, void *input, int size){
+	int result=0, err=0;
+	result = write(fd, input, size); 
+	err = errno; 
+
+	if (result < 0){
+		fprintf(stderr,"tx_raw: Error writing to Serial: %s \n", strerror(err));
+		return 0;
+	} 
+
+	return result;
+}
+
 
 // Timers for perpormance analysis.
 Timer totalVideoReadTime,totalVideoParseTime, totalVideoSendTime;
@@ -425,7 +439,28 @@ int main(int argc, char *argv[]) {
 			totalVideoSendTime.stop();
 		}
 		
+		//Mavlink to FC from ground?
+		if(mavlinkDataToFC.getFIFOsize() > 0){ // If there are any Mavlink msg then sent them to FC
+			bool moreData=false;
+			bool transmisionFailed=false;
+			do{
+				int bytesReady=0;
+				int result=0;
+				bytesReady = mavlinkDataToFC.getData(buffer, sizeof(buffer));
+				if(bytesReady > 0 ){
+					result = writeData(Serialfd, buffer, sizeof(buffer));
+					if(result!=bytesReady){ // Failed to transmitted all data.
+						transmisionFailed=true;
+					}else{
+						moreData=true;
+					}
+				}else{
+					moreData=false;
+				}
+			}while(moreData && !transmisionFailed );
+		}
 		
+
 		//Only run on timeout
 	//	if(nready == 0){	
 			// check if it is time to log the status:

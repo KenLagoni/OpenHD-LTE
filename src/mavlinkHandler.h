@@ -36,6 +36,11 @@ class mavlinkHandler
 	float getAltitudeMSL(void);
 	float getAltitude(void);
 
+	float getAirspeed(void);
+	float getGroundspeed(void);
+	uint16_t getThrottle(void);
+	
+
 	// Parameters used by the classes using this
 	protected:
 
@@ -50,6 +55,10 @@ class mavlinkHandler
 	float longitude=0;
 	float altitudeMSL=0;
 	float altitude=0;
+
+	float airspeed=0;
+	float groundspeed=0;
+	uint16_t throttle=0;
 };
 
 #endif /* MAVLINKHANDLER_H_ */

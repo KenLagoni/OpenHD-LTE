@@ -26,8 +26,8 @@ telemetryWrapper::telemetryWrapper(){
 	 telmetryData.lost_packet_cnt_msp_up = 0;
 	 telmetryData.lost_packet_cnt_msp_down = 0;
 	 telmetryData.lost_packet_cnt_rc = 0;
-	 telmetryData.current_signal_joystick_uplink = 0xff;
-	 telmetryData.current_signal_telemetry_uplink = 0xff;
+	 telmetryData.current_signal_joystick_uplink = -10;
+	 telmetryData.current_signal_telemetry_uplink = 0;
 	 telmetryData.joystick_connected = 0;
 	 telmetryData.HomeLon = 0;
 	 telmetryData.HomeLat = 0;
@@ -38,22 +38,24 @@ telemetryWrapper::telemetryWrapper(){
 	 telmetryData.wifi_adapter_cnt = 1;
 
 	 for (int j = 0; j < 6; ++j) {
-		 telmetryData.adapter[j].current_signal_dbm = -100;
-		 telmetryData.adapter[j].received_packet_cnt = 0;
-		 telmetryData.adapter[j].type = 0;
-		 telmetryData.adapter[j].signal_good = 0;
+		 telmetryData.adapter[j].current_signal_dbm = 50;
+		 telmetryData.adapter[j].received_packet_cnt = 10;
+		 telmetryData.adapter[j].type = 1;
+		 telmetryData.adapter[j].signal_good = 1;
 	 }
-	 telmetryData.adapter[0].signal_good = 0;
-	 telmetryData.adapter[0].current_signal_dbm = 0;
-	 telmetryData.adapter[0].received_packet_cnt = 0;
 
+	 telmetryData.adapter[0].signal_good = 1;
+	 telmetryData.adapter[0].current_signal_dbm = 50;
+	 telmetryData.adapter[0].received_packet_cnt = 10;
 
+/*
 	 telmetryData.adapter[0].signal_good = 0xDC;
 	 telmetryData.adapter[1].signal_good = 0x30;
 	 telmetryData.adapter[2].signal_good = 0x76;
 	 telmetryData.adapter[3].signal_good = 0x00;
 	 telmetryData.adapter[4].signal_good = 0xd0;
 	 telmetryData.adapter[5].signal_good = 0xc4;
+	 */
 }
 
 void telemetryWrapper::inputDataFromTXTelemetryArray(uint8_t *input, int size){
@@ -124,6 +126,15 @@ void  telemetryWrapper::setQOpenHDAirCPULoad(uint8_t load){
 void  telemetryWrapper::setQOpenHDAirTemperature(uint8_t temp){
 	this->telmetryData.temp_air = temp;
 }
+
+void  telemetryWrapper::setQOpenHDRSSI(int16_t rssi){
+	if( (rssi >= -128) &&  (rssi <= 127) ){
+		this->telmetryData.current_signal_joystick_uplink=(int8_t)rssi;
+	}
+}
+
+
+
 
 int8_t  telemetryWrapper::readCPUTempFromLinux(void){
 	float systemp, millideg;

@@ -49,8 +49,18 @@ fi
 	# Encode the video from CSI module (Video+OSD outputed on HDMI from RPI OpenHD) and split the output to two. 1. upload it to local RTSP server and 2. pipe video to record program.
     #gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! h264parse ! fdsink | ./videoRecord -p 6000 -f record > /dev/null
 #	gst-launch-1.0 v4l2src 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log) device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM protocols=tcp t. ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p 6000 -f record 1> /dev/null 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log)
-	gst-launch-1.0 v4l2src 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE) device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM protocols=tcp t. ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p  6000 -f $RECORDPATH 1> /dev/null 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE)
+	
+	#gst-launch-1.0 v4l2src 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE) device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM protocols=tcp t. ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p  6000 -f $RECORDPATH 1> /dev/null 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE)
+	
+	# adding output to screen also:
+	gst-launch-1.0 v4l2src 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE) device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! tee name=r \
+	r. ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t \
+	t. ! h264parse ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM protocols=tcp \
+	t. ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p  6000 -f $RECORDPATH 1> /dev/null 2> >( ts '[%Y-%m-%d %H:%M:%S]' >> $LOGFILE ) 
 
+	#r. ! videoconvert ! videoscale ! fbdevsink sync=false \
+		
+	#gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! tee name=r ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=5000000;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! rtspclientsink location=rtsp://127.0.0.1:8554/mystream protocols=tcp t. ! h264parse ! fdsink | /home/pi/OpenHD-LTE/ground-VideoRecord/videoRecord -p  6000 -f /home/pi/OpenHD-LTE/data 1> /dev/null  r. ! videoconvert ! fbdevsink sync=false
 	
 	#Also show stream on RPI HDMI for local display, not working yet :-(
 	#gst-launch-1.0 v4l2src device=/dev/video0 ! "video/x-raw,framerate=30/1,format=UYVY" ! v4l2h264enc extra-controls="controls,h264_profile=4,h264_level=13,video_bitrate=$BITERATE;" ! video/x-h264,profile=high ! tee name=t ! h264parse ! queue ! rtspclientsink location=rtsp://$IP:$PORT/$STREAM t. ! tee name=t ! h264parse ! fdsink | $INSTALLPATH/ground-VideoRecord/videoRecord -p 6000 -f record > /dev/null | ts '[%Y-%m-%d %H:%M:%S]' >> $INSTALLPATH/data/log/videoRecord-main.log t. ! h264parse ! avdec_h264 ! xvimagesink

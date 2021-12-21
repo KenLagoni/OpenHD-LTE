@@ -34,6 +34,13 @@ int max(int x, int y)
 	return y;
 }
 
+enum DroneState_t{
+	ON_GROUND_DISARMED=0,
+	ON_GROUND_ARMED,
+	FLYING
+};
+DroneState_t DroneState=ON_GROUND_DISARMED;
+
 int flagHelp = 0;
 
 void usage(void) {
@@ -104,8 +111,9 @@ int main(int argc, char *argv[])
 	
 	
 	fprintf(stderr, "Starting Video Record program \n");
-
+	fprintf(stderr, "Recording path: %s\n",outputPath);
 	// For Mavlink input
+	fprintf(stderr, "Mavlink input port: %u\n",mavlinkPort);
 	Connection mavlinkConnection(mavlinkPort, SOCK_DGRAM); // UDP blocking
 	uint8_t inputBuffer[1500];
 
@@ -119,8 +127,11 @@ int main(int argc, char *argv[])
 	H264Recorder videoRecorder(outputPath);
 
 	time_t nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;		
-	
-	int active = 10; // print log for 10 seconds.
+	time_t oneSecondTime = time(NULL) + 1;		
+
+	int active = 2;
+	int flyingCheckCounter = 0;
+	int testFlyingAlg=0;
 
 	do{
 		FD_ZERO(&read_set);	
@@ -145,12 +156,6 @@ int main(int argc, char *argv[])
 			// Parse buffer to mavlink class.
 			if(result > 0){
 				mavlinklDataFromAir.inputData(inputBuffer, result);
-				
-				if(mavlinklDataFromAir.isArmed()){
-					videoRecorder.start();
-				}else{
-					videoRecorder.stop();
-				}
 				active = 2; 
 			}
 		}
@@ -168,7 +173,6 @@ int main(int argc, char *argv[])
 				// NOP - no data.
 			}else { // Data from video pipe.
 				videoRecorder.inputStream(inputBuffer, (uint16_t)result); // parse data for video recording.				
-				active = 2; 
 			}
 		}		
 		
@@ -176,21 +180,120 @@ int main(int argc, char *argv[])
 		//Only run on timeout
 		if(nready == 0){	
 			// check if it is time to log the status:
+			/*
 			if((time(NULL) >= nextPrintTime) && (active > 0 )){
 				active--; // count down log active counter.		
 				// Log the last known posistion:
-				fprintf(stderr, "Last known drone position: (%.6f;%.6f) Altitude (MSL):%.0f [meters] Altitude (above ground):%.0f [meters]\n",mavlinklDataFromAir.getLatitude(),mavlinklDataFromAir.getLongitude(), mavlinklDataFromAir.getAltitudeMSL(), mavlinklDataFromAir.getAltitude());
+				fprintf(stderr, "Last known drone position: (%.6f %.6f) Altitude (MSL):%.0f [meters] Altitude (above ground):%.0f [meters]\n",mavlinklDataFromAir.getLatitude(),mavlinklDataFromAir.getLongitude(), mavlinklDataFromAir.getAltitudeMSL(), mavlinklDataFromAir.getAltitude());
 
 				if(active == 0){
-					fprintf(stderr, "RX: Status: No data for 10 seconds. Stop logging output.\n");	
+					fprintf(stderr, "Video Record: No Mavlink data for 20 seconds. Stop logging output.\n");	
 				}
 
 				nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;
 			}
+			*/
+
+			if((time(NULL) >= oneSecondTime) ){
+				
+				uint16_t throttle = mavlinklDataFromAir.getThrottle();
+				float groundSpeed = mavlinklDataFromAir.getGroundspeed();
+				
+				// debug
+				/*
+				if(testFlyingAlg++ >= 60 ){
+					groundSpeed = 5;
+					if(testFlyingAlg >= 120){
+						testFlyingAlg=0;
+						groundSpeed = 0;
+					}
+				}else{
+					groundSpeed = 0;
+				}
+				fprintf(stderr, "Video Record: Debug, testFlyingAlg(%u) throttle(%u) ground speed(%.1f)\n",testFlyingAlg, throttle, groundSpeed);
+				*/
+			
+				switch(DroneState)
+				{
+					case ON_GROUND_DISARMED: 
+					{
+						// Are we armed?
+						if(mavlinklDataFromAir.isArmed()){
+							fprintf(stderr, "Video Record: Drone is now armed, droneState: ON_GROUND_DISARMED->ON_GROUND_ARMED\n");
+							DroneState=ON_GROUND_ARMED;
+							flyingCheckCounter=0;
+							videoRecorder.start();
+						}
+					}
+					break;
+
+					case ON_GROUND_ARMED: 
+					{
+						// Are we flying?	
+						if( (throttle >= 10) && (groundSpeed >= 3.0) ){
+							flyingCheckCounter++;
+							fprintf(stderr, "Video Record: Drone is about to fly, throttle(%u) ground speed(%.1f)\n", throttle, groundSpeed);	
+						}else{
+							flyingCheckCounter=0;
+						}
+
+						if(flyingCheckCounter >= 5){
+							DroneState=FLYING;
+							flyingCheckCounter=0;
+							fprintf(stderr, "Video Record: Drone is now flying, thus starting recording, droneState: ON_GROUND_ARMED->FLYING\n");	
+						}
+
+						if(!mavlinklDataFromAir.isArmed()){
+							fprintf(stderr, "Video Record: Drone is now disarmed, thus stopping recording, droneState: ON_GROUND_ARMED->ON_GROUND_DISARMED\n");
+							videoRecorder.stop();
+							DroneState=ON_GROUND_DISARMED;
+						}
+					}
+					break;
+
+					case FLYING: 
+					{
+						nextPrintTime++;
+						if(nextPrintTime >= LOG_INTERVAL_SEC){
+							fprintf(stderr, "Video Record: Flying, Last known drone position: (%.6f %.6f) Altitude (above ground):%.0f [meters]\n",mavlinklDataFromAir.getLatitude(),mavlinklDataFromAir.getLongitude(), mavlinklDataFromAir.getAltitude());
+							nextPrintTime=0;
+						}
+						
+						// Are we landed?
+						if( (throttle < 10) && (groundSpeed < 3.0) ){
+							flyingCheckCounter++;
+							fprintf(stderr, "Video Record: Drone is about to land, throttle(%u) ground speed(%.1f)\n", throttle, groundSpeed);	
+						}else{
+							flyingCheckCounter=0;
+						}
+
+						if(flyingCheckCounter >= 5){
+							flyingCheckCounter=0;
+							if(mavlinklDataFromAir.isArmed()){
+								fprintf(stderr, "Video Record: Drone is now landed but still armed, thuis stop recording, droneState: FLYING->ON_GROUND_ARMED\n");
+								DroneState=ON_GROUND_ARMED;
+							}else{
+								fprintf(stderr, "Video Record: Drone is now landed and disarmed, thuis stop recording, droneState: FLYING->ON_GROUND_DISARMED\n");
+								DroneState=ON_GROUND_DISARMED;
+							}
+							videoRecorder.stop();
+						}
+					}
+					break;
+
+
+					default:
+					{
+						fprintf(stderr, "Video Record: Unknown DroneState switch (%u).\n", DroneState);	
+					}
+					break;
+				}				
+				oneSecondTime = time(NULL) + 1;
+			}
 		}
 	}while(1);
 	
-	perror("VideoRecord: PANIC! Exit While 1\n");
+	perror("Video Record: PANIC! Exit While 1\n");
     return 1;
 }
 

@@ -46,6 +46,7 @@ class telemetryWrapper
 	void setQOpenHDKbitRate(uint32_t kbitss);
 	void setQOpenHDAirCPULoad(uint8_t load);
 	void setQOpenHDAirTemperature(uint8_t temp);
+	void setQOpenHDRSSI(int16_t rssi);
 
 	uint8_t calculateCPULoadFromLinux(void);
 	int8_t readCPUTempFromLinux(void);  

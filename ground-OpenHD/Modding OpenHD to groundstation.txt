@@ -65,7 +65,7 @@ sudo nano -l /usr/local/share/wifibroadcast-scripts/rx_functions.sh
 ####ionice -c 1 -n 3 /usr/local/bin/rx_raw -p 7000 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
 
 Reomve line 484 to 488 (if [ "$VIDEO_TMP" != "none" ]; then) and add Line 483:
-ionice -c 1 -n 3 /usr/local/bin/rx_raw -v 12000 -m 12002 -t 12001 -i 192.168.0.8 -r 14450 1> /var/run/openhd/videofifo1 2> >(ts '[%Y-%m-%d %H:%M:%S]' >> /home/pi/rx_raw.log)
+ionice -c 1 -n 3 /usr/local/bin/rx_raw -v 12000 -m 12002 -t 12001 -i 192.168.0.8 -r 14450 -c 192.168.0.8 1> /var/run/openhd/videofifo1 2> >(ts '[%Y-%m-%d %H:%M:%S]' >> /home/pi/rx_raw.log)
 
 
 

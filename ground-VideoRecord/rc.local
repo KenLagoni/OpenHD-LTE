@@ -6,6 +6,6 @@ if [ "$_IP" ]; then
   printf "My IP address is %s\n" "$_IP"
 fi
 
-/home/pi/OpenHD-LTE/ground-VideoRecord/main.sh
+/home/pi/OpenHD-LTE/ground-VideoRecord/main.sh /home/pi/OpenHD-LTE
 
 exit 0

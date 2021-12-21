@@ -479,8 +479,8 @@ function rx_function {
 
 #	 ionice -c 1 -n 3 /usr/local/bin/rx_raw -p 7000 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
 	
-	 sleep 40
-	 ionice -c 1 -n 3 /usr/local/bin/rx_raw -v 7000 -m 12000 -t 5200 -i 192.168.0.8 -r 14450 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
+	 sleep 10
+	 ionice -c 1 -n 3 /usr/local/bin/rx_raw -v 12000 -m 12002 -t 12001 -i 192.168.0.8 -r 14450 -c 192.168.0.8 1> /var/run/openhd/videofifo1 2>>/home/pi/rx_raw.log
 #        if [ "$VIDEO_TMP" != "none" ]; then
 #            ionice -c 1 -n 3 /usr/local/bin/rx -p 0 -d 1 -b $VIDEO_BLOCKS -r $VIDEO_FECS -f $VIDEO_BLOCKLENGTH $NICS | ionice -c 1 -n 4 nice -n -10 tee >(ionice -c 1 -n 4 nice -n -10 /usr/local/bin/ftee /var/run/openhd/videofifo2 > /dev/null 2>&1) >(ionice -c 1 nice -n -10 /usr/local/bin/ftee /var/run/openhd/videofifo4 > /dev/null 2>&1) >(ionice -c 3 nice /usr/local/bin/ftee /var/run/openhd/videofifo3 > /dev/null 2>&1) | ionice -c 1 -n 4 nice -n -10 /usr/local/bin/ftee /var/run/openhd/videofifo1 > /dev/null 2>&1
 #        else

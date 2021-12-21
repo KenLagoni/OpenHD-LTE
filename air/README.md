@@ -8,8 +8,7 @@ The partition table should look like this:
 2. / (ext4) (Raspberry pi system, not visable from Windows) ~1.6GB
 3. SDHC (fat32) ~ rest of the card (16GB card -> ~14GB). (14GB of space is ~14Hours of 5Mbit/s recording).
 
-Select and install the latest Raspberry Pi OS lite (32-bit) on to an SD card using the "Raspberry Pi Imager" tool. (This documentation used v1.6.2)\
-![Ground-side setup1](https://github.com/KenLagoni/OpenHD-LTE/blob/main/images/ground-install-image_writer.png?raw=true)
+Install the [2020-02-13-raspbian-buster-lite.img](https://downloads.raspberrypi.org/raspbian_lite/images/raspbian_lite-2020-02-14/2020-02-13-raspbian-buster-lite.zip) image on to an SD card using the "Raspberry Pi Imager" tool (use custom). It must be this version since the later versions have raspivid command replaced with libcamera-vid and it doesn't work very well with the Arducam camera at the moment. 
 - After the tool is complete it will unmount the SD card. Insert the SD back in the PC BEFORE! booting it on the raspberry.
 - In the Boot partition, find and open the "cmdline.txt" file, and replace "init=/usr/lib/raspi-config/init_resize.sh" with "ip=192.168.0.11" (ensure ip is available on the network).
 - In the Boot partition, make an empty file called "ssh" (no extention) to enable ssh login.
@@ -25,11 +24,12 @@ Select and install the latest Raspberry Pi OS lite (32-bit) on to an SD card usi
 	2. login password for Ground pi (default is raspberry if not changed).
 	3. Samba server and utilities (Modify smb.conf to use WINS settings from DHCP?) -> NO.
 	4. Enter New SMB password: (same as login password).
+	5. run "sudo raspi-config" and enable the camera after the script is done.
 - The script will end with the list of ports needed to be forwarded in the router. the default is:
 Installation complete - Please setup your local router to forward:\
 SCP (Firmware update)     : \*.\*\.\*.\*:33    Forward to 192.168.0.10:22    Protocol: TCP/UDP\
-Video stream             : \*.\*.\*.\*:7000  Forward to 192.168.0.10:7000  Protocol: TCP/UDP\
-Telemetri stream (OSD)    : \*.\*.\*.\*:7001  Forward to 192.168.0.10:7001  Protocol: TCP/UDP\
-Mavlink stream (OSD)      : \*.\*.\*.\*:12000 Forward to 192.168.0.10:12000 Protocol: TCP/UDP
+Video stream             : \*.\*.\*.\*:12000  Forward to 192.168.0.10:12000 Protocol: TCP/UDP\
+Telemetri stream (OSD)    : \*.\*.\*.\*:12001  Forward to 192.168.0.10:12001  Protocol: TCP/UDP\
+Mavlink stream (OSD)      : \*.\*.\*.\*:12002 Forward to 192.168.0.10:12002 Protocol: TCP/UDP
 
 The sd card can now be used in the air side pi.

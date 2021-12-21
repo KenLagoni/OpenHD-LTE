@@ -14,7 +14,7 @@
 #include <fstream> //Video record to file
 
 #define MAX_FILE_SIZE 2136997888 //(2GB-10MB)
-
+#define MAX_HEADER_SIZE 100
 
 class H264Recorder
 {
@@ -25,7 +25,7 @@ class H264Recorder
 	void inputStream(uint8_t *data, uint32_t length);
 	void start(void); // start recording to file in path with filename: YYYY-MM-DD_HH-MM-Recording0.h264
 	void stop(void);  // this will also finalize H264 to mp4.
-	void restart(char *filePath); // start recording to file a new file.
+	//void restart(char *filePath); // start recording to file a new file.
 
 	// Parameters used by the classes using this
 	protected:
@@ -35,6 +35,7 @@ class H264Recorder
 	
 	void startNewRecordingFile(bool closeFile);
 	void clearAll(void);
+	void clearAllExceptHeader(void);
 	
 	enum RecorderState_t{
 	  LOOKING_FOR_HEADER=0,		
@@ -53,7 +54,7 @@ class H264Recorder
 
 	bool recording=false;
 	uint8_t buffer[65565]; // needs to include the keyframe start header.	
-	uint8_t header[60];
+	uint8_t header[MAX_HEADER_SIZE];
 	uint32_t headerIndexCounter=0;
 	uint32_t bufferIndexCounter=0;
 	

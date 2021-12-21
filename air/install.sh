@@ -21,8 +21,8 @@ sudo apt-get update
 #install ts (for timestamp) in moreutils packages
 sudo apt install moreutils -y
 
-#### install wirinpi for GPIO read.
-sudo apt-get install wiringpi -y
+#### install wirinpi for GPIO read. (not used any more)
+#sudo apt-get install wiringpi -y 
 
 ####install driver/libarry for EC25 LTE modem.
 sudo apt install libqmi-utils udhcpc -y
@@ -94,7 +94,8 @@ sudo raspi-config nonint do_serial 2
 #sed -i 's|console=serial0,115200 ||' /boot/cmdline.txt
 
 ### Enable Camera (set_camera 0) unlogical but it works.
-sudo raspi-config nonint set_camera 0
+#sudo raspi-config nonint set_camera 0 (incorrect command?)
+sudo raspi-config nonint set camera 0
 
 
 ## uncomment for composite PAL

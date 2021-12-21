@@ -53,10 +53,21 @@ void mavlinkHandler::inputData(uint8_t *input, int size){ // parse input data to
 				mavlink_msg_global_position_int_decode(&msg, &newmsg);
 				this->latitude =  ((float)newmsg.lat)/10000000;
 				this->longitude = ((float)newmsg.lon)/10000000;
-				this->altitudeMSL = ((float)newmsg.alt)/1000;
-				this->altitude = ((float)newmsg.alt)/1000;
+			//	this->altitudeMSL = ((float)newmsg.alt)/1000; // only GPS altitude!
+			//	this->altitude = ((float)newmsg.alt)/1000; // only GPS altitude!
 				//fprintf(stderr, "Last known drone position: (%.6f;%.6f) Altitude (MSL):%.0f [meters] Altitude (above ground):%.0f [meters]",latitude,longitude, altitudeMSL, altitude);
 			}
+
+			// get airspeed, groundspeed and throttle.
+			if(msg.msgid == MAVLINK_MSG_ID_VFR_HUD){ //#74
+				mavlink_vfr_hud_t newmsg;
+				mavlink_msg_vfr_hud_decode(&msg, &newmsg);
+				this->airspeed=newmsg.airspeed;
+				this->groundspeed=newmsg.groundspeed;
+				this->throttle=newmsg.throttle;
+				this->altitude=newmsg.alt;
+			}
+
 		}
 	}
 }
@@ -101,7 +112,6 @@ bool mavlinkHandler::isArmed(void){
 	return this->armed;
 }
 
-
 float mavlinkHandler::getLatitude(void){ 
 	return this->latitude;
 }
@@ -118,6 +128,16 @@ float mavlinkHandler::getAltitude(void){
 	return this->altitude;
 }
 
+float mavlinkHandler::getAirspeed(void){ 
+	return this->airspeed;
+}
+
+float mavlinkHandler::getGroundspeed(void){ 
+	return this->groundspeed;
+}
+uint16_t mavlinkHandler::getThrottle(void){ 
+	return this->throttle;
+}
 
 /*
 

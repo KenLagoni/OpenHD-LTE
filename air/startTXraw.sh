@@ -5,11 +5,6 @@ source $1/air-settings.sh
 LOG=$2
 VIDEOSAVEPATH=$3
 
-## Test Camera:
-echo "Testing camera:" | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
-raspistill -o test.jpg 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG
-
-
 for (( ; ; ))
 do
 	echo "Starting TX_RAW to IP=$IP VIDEO_PORT=$VIDEOPORT MAVLINK_PORT=$MAVLINKPORT TELEMETRY_PORT=$TELEMETRIPORT" | ts '[%Y-%m-%d %H:%M:%S]' >> $LOG

@@ -25,7 +25,7 @@ void H264Recorder::inputStream(uint8_t *input, uint32_t length){
 			{
 				if(index >= 4){
 					if(input[index-4] == 0x00 && input[index-3] == 0x00 && input[index-2] == 0x00 && input[index-1] == 0x01 && input[index] == 0x27){ // Header code found
-						fprintf(stderr, "H264Recorder: Video header found: ");
+						fprintf(stderr, "H264Recorder: Video header found (%u): ", length);
 						this->header[0]=0x00;
 						this->header[1]=0x00;
 						this->header[2]=0x00;
@@ -33,6 +33,7 @@ void H264Recorder::inputStream(uint8_t *input, uint32_t length){
 						this->header[4]=0x27;
 						this->headerIndexCounter = 5;
 						this->state = SAVING_HEADER;
+						fprintf(stderr, "00 00 00 01 27 ");
 					}else{
 						this->state = LOOKING_FOR_HEADER;
 					}									
@@ -42,20 +43,28 @@ void H264Recorder::inputStream(uint8_t *input, uint32_t length){
 
 			case SAVING_HEADER:
 			{
-				if(index < length-5){
+//				if(index < length-5){
+
+					if(index < length-5){
+						if(input[index] == 0x00 && input[index+1] == 0x00 && input[index+2] == 0x00 && input[index+3] == 0x01 && input[index+4] == 0x25){ // Keyframe found, thus header done!
+							if(true==this->recording){
+								this->state = WAITING_FOR_KEYFRAME;						
+							}else{
+								this->state = STOPPED;						
+							}
+							fprintf(stderr, " Total header size(%u)\n",this->headerIndexCounter);	
+							break;	
+						}									
+					}
+
 					this->header[this->headerIndexCounter]=input[index];
 					fprintf(stderr, "%02x ",this->header[this->headerIndexCounter]);
 					this->headerIndexCounter++;
-						
-					if(input[index+1] == 0x00 && input[index+2] == 0x00 && input[index+3] == 0x00 && input[index+4] == 0x01 && input[index+5] == 0x25){ // Keyframe found, thus header done!
-						if(true==this->recording){
-							this->state = WAITING_FOR_KEYFRAME;						
-						}else{
-							this->state = STOPPED;						
-						}
-						fprintf(stderr, " Total header size(%u)\n",this->headerIndexCounter);		
-					}									
-				}
+					if(this->headerIndexCounter >= MAX_HEADER_SIZE){
+						fprintf(stderr, " Header to large! - Error!\n");		
+						exit(1);
+					}
+//				}
 			}
 			break;	
 
@@ -166,12 +175,13 @@ void H264Recorder::inputStream(uint8_t *input, uint32_t length){
 void H264Recorder::start(void){ // start recording to file in path with filename: YYYY-MM-DD_HH-MM-Recording0.h264
 	if(this->recording == false){ // only make new file first time we go from false to true.
 		startNewRecordingFile(false);
+		this->recording=true;
 	}
-	this->recording=true;
 }
 
 void H264Recorder::stop(void){  // this will also finalize H264 to mp4.
 	if(this->recording == true){ // only make new file first time we go from false to true.
+		videoRecordFile.close();
 		fprintf(stderr, "H264Recorder: Recording stopped\n");	
 
 		// convert to mp4:
@@ -179,31 +189,45 @@ void H264Recorder::stop(void){  // this will also finalize H264 to mp4.
 		char command[500];
 		sprintf(command, "ffmpeg -r 30 -i %s -c copy %s &",this->recordFileWithPath, this->finaleFileWithPath);
 		system(command);
+		this->clearAllExceptHeader();
 	}
-	this->recording=false;
 }
-
+/*
 void H264Recorder::restart(char *filePath){
 	this->clearAll();
 	sprintf(this->recordPath,"%s",filePath);	
 	this->startNewRecordingFile(true);
-}
+}*/
 
 void H264Recorder::clearAll(void){
 	this->recording=false;
 	bzero(&this->buffer, sizeof(this->buffer));
+
 	this->headerIndexCounter=0;
+	bzero(&this->header, MAX_HEADER_SIZE);
+
 	this->bufferIndexCounter=0;
 	this->bytesRecorded=0;
 	this->state=LOOKING_FOR_HEADER;
 	bzero(&this->recordFileWithPath, sizeof(this->recordFileWithPath));
+	bzero(&this->finaleFileWithPath, sizeof(this->finaleFileWithPath));
+}
+
+void H264Recorder::clearAllExceptHeader(void){
+	this->recording=false;
+	bzero(&this->buffer, sizeof(this->buffer));
+	this->bufferIndexCounter=0;
+	this->bytesRecorded=0;
+	this->state=WAITING_FOR_KEYFRAME;
+	bzero(&this->recordFileWithPath, sizeof(this->recordFileWithPath));
+	bzero(&this->finaleFileWithPath, sizeof(this->finaleFileWithPath));
 }
 
 void H264Recorder::startNewRecordingFile(bool closeOld){
 	
-	if(true==closeOld){
-		videoRecordFile.close();	
-	}
+//	if(true==closeOld){
+//		videoRecordFile.close();	
+//	}
 	
 	this->bytesRecorded=0;
 	
@@ -211,13 +235,15 @@ void H264Recorder::startNewRecordingFile(bool closeOld){
 	// convert now to tm struct for UT
 	tm *gmtm = gmtime(&now);
 	
-	bzero(&this->recordFileWithPath, sizeof(this->recordFileWithPath));
 	int day=gmtm->tm_mday;
 	int month=gmtm->tm_mon+1;
 	int year=gmtm->tm_year+1900;
 	int hour=gmtm->tm_hour;
 	int min=gmtm->tm_min;
 	int sec=gmtm->tm_sec;
+
+	bzero(&this->recordFileWithPath, sizeof(this->recordFileWithPath));
+	bzero(&this->finaleFileWithPath, sizeof(this->finaleFileWithPath));
 
 	sprintf(this->recordFileWithPath,"%s/%02d-%02d-%04d_%02d-%02d-%02d_Record.h264",this->recordPath,day,month,year,hour,min,sec);	
 	sprintf(this->finaleFileWithPath,"%s/%02d-%02d-%04d_%02d-%02d-%02d_Record.mp4",this->recordPath,day,month,year,hour,min,sec);	

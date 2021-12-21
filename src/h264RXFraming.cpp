@@ -270,15 +270,28 @@ bool H264RXFraming::waitingForHeader(void){ // returns true of waiting for the h
 bool H264RXFraming::serviceRXPackage(void){
 //	fprintf(stderr, "H264_RX: Input Package with FrameID(%u) and PackageID(%u) and PayloadSize (%u) received. InputBuffer size(%u), tempOutput size(%u), OutputFIFO size(%u)... \n",this->currentBuffer->getFrameID(), this->currentBuffer->getPackageID(), this->currentBuffer->getPayloadSize(),this->inputData.size(), this->tempOutputFrame.size(), this->outputPackages.size());	
 
-	if(this->currentBuffer->isHeaderFrame()){
-		fprintf(stderr, "H264_RX: Header frame found!\n");
-		this->headerFound=true;
-		this->clearOutputFrame();
-		this->clearInputData();
-		this->buildOutputFrame(this->currentBuffer); //add data to tempOutputFrame.
-		this->FrameID = this->currentBuffer->getFrameID();	// reset to new frameId. but I don't think we ever use this.?
-		return false;
+	if(this->headerFound == false){ // we don't start making outputframes before a header is found
+		//fprintf(stderr, "H264_RX: Header is missing\n");
+		if(this->currentBuffer->isHeaderFrame()){
+						
+			uint8_t *p = this->currentBuffer->getPayload();
+			uint16_t headerSize = this->currentBuffer->getPayloadSize();
+			fprintf(stderr, "H264_RX: Header frame received (%u):", headerSize);
+			for(int a=0;a<headerSize;a++){
+				fprintf(stderr, " %02x", p[a]);
+			}
+			fprintf(stderr, "\n");
+			 
+			this->headerFound=true;
+			this->clearOutputFrame();
+			this->clearInputData();
+			this->buildOutputFrame(this->currentBuffer); //add data to tempOutputFrame.
+			this->FrameID = this->currentBuffer->getFrameID();	// reset to new frameId. but I don't think we ever use this.?
+			return false;
+		}
 	}
+
+
 
 
 	// Is this the next package we are expecting?

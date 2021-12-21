@@ -13,15 +13,18 @@ void usage(void) {
 
 	"-i  <IP>       IP to forward all Mavlink data to MavlinkServer.\n"
 	"-r  <port>     Port for relay Mavlink data.\n"
+	"-c  <IP>       IP for Mavlink read-only forward data on port 6000. If not specified localhost will be used.\n"
 	"Program will automatically sent:\n"
 	"Video->localhost:5600\n"
-	"Mavlink->localhost:14450\n"
+	"Mavlink->localhost:14550\n"
 	"Telemetry(reframed for QOpenHD)->localhost:5155\n"
 	"Optional:\n"
-	"Mavlink<->IP:PORT\n"
-	"Mavlink->192.168.0.8:6000\n" // For video record on/off.
-	"Example:\n"
-	"  ./rx_raw -v 7000 -m 12000 -t 5200 -i 192.168.0.67 -r 14550\n"
+	"Mavlink(relay)<->IP:PORT\n"
+	"Mavlink(read-only)->IP:6000\n" 
+	"Examples:\n"
+	"  ./rx_raw -v 12000 -m 12002 -t 12001 \n"
+	"  ./rx_raw -v 12000 -m 12002 -t 12001 -i 192.168.0.8 -r 14450\n"
+	"  ./rx_raw -v 12000 -m 12002 -t 12001 -i 192.168.0.8 -r 14450 -h 192.168.0.8\n"
 	"\n");
 	exit(1);
 }
@@ -29,14 +32,11 @@ void usage(void) {
 
 Timer totalReadTime,totalSetDataTime,totalWriteSTDOUTTime,totalWaitTime,totalBusyTime;
 
-#define OUTPUT_VIDEO_PORT 5600
 #define OUTPUT_MAVLINK_PORT 14550
 #define OUTPUT_TELEMETRY_PORT 5155
+#define OUTPUT_MAVLINK_COPY_PORT 6000
 
 int main(int argc, char *argv[]) 
-// Input arguments ./rx_raw [INPUT UDP PORT]
-// argv[0] 	./main - not used
-// argv[1] 	[INPUT UDP PORT] 
 {
 	char *p;
 	int videoPort= 0; 
@@ -44,6 +44,7 @@ int main(int argc, char *argv[])
 	int telemetryPort= 0; 
 	char *relayIP;
 	int relayPort=0;
+	char *mavlinkCopyIP = NULL;
 		
     while (1) {
 	    int nOptionIndex;
@@ -51,7 +52,7 @@ int main(int argc, char *argv[])
 		    { "help", no_argument, &flagHelp, 1 },
 		    {      0,           0,         0, 0 }
 	    };
-	    int c = getopt_long(argc, argv, "h:v:m:t:i:r:", optiona, &nOptionIndex);
+	    int c = getopt_long(argc, argv, "h:v:m:t:i:r:c:", optiona, &nOptionIndex);
 	    if (c == -1) {
 		    break;
 	    }
@@ -94,7 +95,13 @@ int main(int argc, char *argv[])
 				relayPort = atoi(optarg);
 				break;
 			}
-			
+
+			case 'c': {
+				mavlinkCopyIP = optarg;
+				break;
+			}
+
+
 		    default: {
 			    fprintf(stderr, "RX: unknown input parameter switch %c\n", c);
 			    usage();
@@ -126,37 +133,45 @@ int main(int argc, char *argv[])
 
 	fprintf(stderr, "Starting UDP RX program\n");
 
+	// For UDP Sockets
+	fprintf(stderr, "Video input port: %u\n",videoPort);
+	Connection inputVideoConnection(videoPort, SOCK_DGRAM,O_NONBLOCK);
+	fprintf(stderr, "Mavlink input port: %u\n",mavlinkPort);
+	Connection inputMavlinkConnection(mavlinkPort, SOCK_DGRAM); // UDP port	
+	fprintf(stderr, "Telemtry input port: %u\n", telemetryPort);
+	Connection inputTelemetryConnection(telemetryPort, SOCK_DGRAM); // UDP port
+
+	fprintf(stderr, "Mavlink output to OpenHD: 127.0.0.1:%u\n", OUTPUT_MAVLINK_PORT);
+	Connection outputMavlinkConnection("127.0.0.1", OUTPUT_MAVLINK_PORT, SOCK_DGRAM);
+
+	fprintf(stderr, "Telemetry output to OpenHD: 127.0.0.1:%u\n", OUTPUT_TELEMETRY_PORT);
+	Connection outputTelemetryConnection("127.0.0.1", OUTPUT_TELEMETRY_PORT, SOCK_DGRAM);
+
 
 	// For relay
 	Connection *relayConnection = NULL;
 	if(relayPort != 0){
+		fprintf(stderr, "Mavlink relay connection: %s:%u\n",relayIP, relayPort);
 		relayConnection = new Connection(relayIP, relayPort, SOCK_DGRAM); // blocking.
 	}else{
+		fprintf(stderr, "Mavlink relay connection: Not Used\n");
 		relayConnection = new Connection(); // Empty.
 	}
-		
-	// For UDP Sockets
-	Connection inputVideoConnection(videoPort, SOCK_DGRAM,O_NONBLOCK);
 
-	// For UDP Sockets
-	Connection inputMavlinkConnection(mavlinkPort, SOCK_DGRAM); // UDP port
-	Connection outputMavlinkConnection("127.0.0.1", OUTPUT_MAVLINK_PORT, SOCK_DGRAM);
-	Connection extraRelayMavlinkConnection("192.168.0.8", 6000, SOCK_DGRAM);
-		
-	// For UDP Sockets
-	Connection inputTelemetryConnection(telemetryPort, SOCK_DGRAM); // UDP port
-	Connection outputTelemetryConnection("127.0.0.1", OUTPUT_TELEMETRY_PORT, SOCK_DGRAM);
-				
+	Connection *extraRelayMavlinkConnection = NULL;
+	fprintf(stderr, "Mavlink read-only output: ");
+	if (mavlinkCopyIP == NULL) {
+		fprintf(stderr, "127.0.0.1:6000\n");
+		extraRelayMavlinkConnection = new Connection("127.0.0.1", 6000, SOCK_DGRAM);
+	}else{
+		fprintf(stderr, "%s:6000\n",mavlinkCopyIP);
+		extraRelayMavlinkConnection = new Connection(mavlinkCopyIP, 6000, SOCK_DGRAM);
+	}
+			
 	static H264RXFraming RXpackageManager; // Needs to be static so it is not allocated on the stack, because it uses 8MB.
 	uint8_t rxBuffer[UDP_PACKET_SIZE];
 	
 	telemetryWrapper RXtelemetry;
-	
-//	std::string str = "/home/pi";
-//    char* file = &*str.begin();
-//	H264Recorder videoRecorder(file); // debug
-//	videoRecorder.start();
-
 	mavlinkHandler mavlinkDataFromAir;
 
 	int nready, maxfdp1; 
@@ -167,7 +182,6 @@ int main(int argc, char *argv[])
 	rx_dataRates_t linkstatus;
 	bzero(&linkstatus, sizeof(linkstatus));
 	time_t nextPrintTime = time(NULL) + LOG_INTERVAL_SEC;
-
 
 	int status = fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL, 0) | O_NONBLOCK);
 	if (status == -1){
@@ -265,7 +279,7 @@ int main(int argc, char *argv[])
 				if(relayPort != 0){
 					relayConnection->writeData(rxBuffer, result);
 				}			
-				extraRelayMavlinkConnection.writeData(rxBuffer, result); // extra relay for video record when armed.	
+				extraRelayMavlinkConnection->writeData(rxBuffer, result); // extra relay for video record when armed.	
 			}
 		}
 
@@ -302,6 +316,7 @@ int main(int argc, char *argv[])
 				RXtelemetry.inputDataFromTXTelemetryArray(rxBuffer, result);
 				RXtelemetry.setQOpenHDAirCPULoad(RXtelemetry.getCPULoad());
 				RXtelemetry.setQOpenHDAirTemperature(RXtelemetry.getCPUTemperature());
+				RXtelemetry.setQOpenHDRSSI(RXtelemetry.getRSSI());				
 				active = 10; // ensure log will run for 10 seconds.
 			}
 		}
